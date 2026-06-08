@@ -1,6 +1,15 @@
 {
   "projects": [
     {
+      "slug": "opus-4-6-impression-garbage-chatbot-clone",
+      "title": "Opus 4.6 Impression - Garbage Chatbot Clone",
+      "description": "A single-page chatbot that role-plays as 'you' — an intro fades in, then you talk to a mirror of yourself wired to the Anthropic API with a hard-coded persona system prompt.",
+      "tags": ["chatbot", "llm", "anthropic-api", "persona", "single-page", "toy"],
+      "date": "2026-06-08",
+      "path": "projects/opus-4-6-impression-garbage-chatbot-clone/",
+      "pages": []
+    },
+    {
       "slug": "opus-4-8-impression-neural-playground",
       "title": "Opus 4.8 Impression - Neural Playground",
       "description": "A small multilayer perceptron trained live in the browser by hand-written backpropagation — watch tangled classes get pulled apart in the network's learned 2-D representation until a single line separates them.",
