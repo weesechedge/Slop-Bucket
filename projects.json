@@ -1,6 +1,15 @@
 {
   "projects": [
     {
+      "slug": "cube-maker",
+      "title": "Cube Maker",
+      "description": "Drop in an image, wrap it onto a spinning 3D cube, pick a spin style and loop length, then export an animated GIF — all rendered with WebGL in the browser, nothing uploaded.",
+      "tags": ["webgl", "three-js", "gif", "animation", "3d", "cube", "image", "interactive", "browser"],
+      "date": "2026-06-08",
+      "path": "projects/cube-maker/",
+      "pages": []
+    },
+    {
       "slug": "opus-4-8-impression-neural-playground",
       "title": "Opus 4.8 Impression - Neural Playground",
       "description": "A small multilayer perceptron trained live in the browser by hand-written backpropagation — watch tangled classes get pulled apart in the network's learned 2-D representation until a single line separates them.",

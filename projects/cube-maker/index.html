@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUBE FORGE</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0c0c12;
+    --panel: #14141d;
+    --ink: #f4f1ea;
+    --dim: #8a8798;
+    --accent: #ff5e3a;
+    --accent2: #4d7cff;
+    --line: rgba(255,255,255,0.08);
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(77,124,255,0.10), transparent 45%),
+      radial-gradient(circle at 85% 90%, rgba(255,94,58,0.10), transparent 45%),
+      var(--bg);
+    color: var(--ink);
+    font-family: 'Bricolage Grotesque', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 18px 60px;
+  }
+
+  header { text-align: center; margin-bottom: 28px; }
+  h1 {
+    font-size: clamp(2rem, 8vw, 3.4rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+  }
+  h1 span { color: var(--accent); }
+  .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 10px;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Drop zone */
+  .drop {
+    border: 2px dashed var(--line);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: rgba(255,255,255,0.015);
+  }
+  .drop:hover, .drop.hot {
+    border-color: var(--accent);
+    background: rgba(255,94,58,0.05);
+  }
+  .drop .icon { font-size: 1.6rem; margin-bottom: 8px; }
+  .drop .big { font-weight: 700; font-size: 1rem; }
+  .drop .small { color: var(--dim); font-size: 0.8rem; margin-top: 4px; }
+  input[type=file] { display: none; }
+
+  /* Stage */
+  .stage {
+    position: relative;
+    height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at center, rgba(77,124,255,0.08), transparent 60%),
+      #07070b;
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .stage.empty::after {
+    content: 'AWAITING IMAGE';
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+  }
+
+  .scene { width: 180px; height: 180px; perspective: 700px; }
+  .cube {
+    width: 100%; height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: spin 8s infinite linear;
+  }
+  .face {
+    position: absolute;
+    width: 180px; height: 180px;
+    background-size: cover;
+    background-position: center;
+    border: 1.5px solid rgba(255,94,58,0.55);
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
+    backface-visibility: visible;
+  }
+  .front  { transform: rotateY(0deg)   translateZ(90px); }
+  .back   { transform: rotateY(180deg) translateZ(90px); }
+  .right  { transform: rotateY(90deg)  translateZ(90px); }
+  .left   { transform: rotateY(-90deg) translateZ(90px); }
+  .top    { transform: rotateX(90deg)  translateZ(90px); }
+  .bottom { transform: rotateX(-90deg) translateZ(90px); }
+
+  @keyframes spin {
+    0%   { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
+    25%  { transform: rotateX(90deg)  rotateY(90deg)  rotateZ(15deg); }
+    50%  { transform: rotateX(180deg) rotateY(180deg) rotateZ(0deg); }
+    75%  { transform: rotateX(270deg) rotateY(270deg) rotateZ(-15deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg); }
+  }
+  @keyframes slowSpin {
+    0%   { transform: rotateX(0deg) rotateY(0deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg); }
+  }
+  @keyframes tumble {
+    0%   { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
+    20%  { transform: rotateX(72deg)  rotateY(144deg) rotateZ(36deg); }
+    40%  { transform: rotateX(144deg) rotateY(72deg)  rotateZ(-20deg); }
+    60%  { transform: rotateX(216deg) rotateY(288deg) rotateZ(25deg); }
+    80%  { transform: rotateX(288deg) rotateY(180deg) rotateZ(-15deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg); }
+  }
+
+  /* Controls */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .row { display: flex; flex-direction: column; gap: 8px; }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .seg { display: flex; gap: 6px; }
+  .seg button {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    color: var(--dim);
+    padding: 9px 6px;
+    border-radius: 9px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .seg button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--ink);
+    min-width: 52px;
+    text-align: right;
+  }
+
+  .export {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), #ff8a3a);
+    border: none;
+    color: #fff;
+    padding: 16px;
+    border-radius: 12px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.2s ease;
+  }
+  .export:hover { transform: translateY(-2px); }
+  .export:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .progress {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 99px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress.show { display: block; }
+  .bar { height: 100%; width: 0%; background: var(--accent2); transition: width 0.2s ease; }
+  .status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--dim);
+    text-align: center;
+    min-height: 14px;
+  }
+
+  .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
+  .result.show { display: flex; }
+  .result img { max-width: 100%; border-radius: 12px; border: 1px solid var(--line); }
+  .dl {
+    display: inline-block;
+    background: var(--accent2);
+    color: #fff;
+    text-decoration: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  footer {
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--dim);
+    text-align: center;
+    line-height: 1.6;
+  }
+  #glcanvas { display: none; }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Cube Maker</span></nav>
+
+<header>
+  <h1>CUBE<span>FORGE</span></h1>
+  <div class="sub">drop a face · spin it · export gif</div>
+</header>
+
+<div class="wrap">
+
+  <label class="drop" id="drop">
+    <div class="icon">⬡</div>
+    <div class="big">Tap to upload an image</div>
+    <div class="small">or drag &amp; drop · jpg / png</div>
+    <input type="file" id="file" accept="image/*">
+  </label>
+
+  <div class="stage empty" id="stage">
+    <div class="scene" style="display:none" id="scene">
+      <div class="cube" id="cube">
+        <div class="face front"></div>
+        <div class="face back"></div>
+        <div class="face right"></div>
+        <div class="face left"></div>
+        <div class="face top"></div>
+        <div class="face bottom"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <div class="label">Animation</div>
+      <div class="seg" id="seg">
+        <button class="on" data-anim="dynamic">Dynamic</button>
+        <button data-anim="slow">Slow</button>
+        <button data-anim="tumble">Tumble</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="label">Loop length</div>
+      <div class="slider-row">
+        <input type="range" id="dur" min="2" max="8" step="1" value="4">
+        <div class="val" id="durVal">4.0 s</div>
+      </div>
+    </div>
+
+    <button class="export" id="export" disabled>EXPORT GIF</button>
+
+    <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="result" id="result">
+    <img id="out" alt="cube gif">
+    <a class="dl" id="dl" download="cube.gif">↓ Download GIF</a>
+  </div>
+
+  <footer>
+    runs entirely in your browser · nothing uploaded anywhere<br>
+    webgl render → gif.js encode
+  </footer>
+</div>
+
+<canvas id="glcanvas" width="360" height="360"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const stage = document.getElementById('stage');
+const scene = document.getElementById('scene');
+const cube = document.getElementById('cube');
+const faces = document.querySelectorAll('.face');
+const exportBtn = document.getElementById('export');
+const seg = document.getElementById('seg');
+const durSlider = document.getElementById('dur');
+const durVal = document.getElementById('durVal');
+const progress = document.getElementById('progress');
+const bar = document.getElementById('bar');
+const status = document.getElementById('status');
+const result = document.getElementById('result');
+const outImg = document.getElementById('out');
+const dl = document.getElementById('dl');
+
+let imageURL = null;
+let imageEl = null;
+let currentAnim = 'dynamic';
+
+const animClass = { dynamic: 'spin', slow: 'slowSpin', tumble: 'tumble' };
+
+/* ---------- upload handling ---------- */
+function loadImage(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  if (imageURL) URL.revokeObjectURL(imageURL);
+  imageURL = URL.createObjectURL(file);
+  imageEl = new Image();
+  imageEl.onload = () => {
+    faces.forEach(f => f.style.backgroundImage = `url(${imageURL})`);
+    scene.style.display = 'block';
+    stage.classList.remove('empty');
+    exportBtn.disabled = false;
+    result.classList.remove('show');
+    status.textContent = 'ready';
+  };
+  imageEl.src = imageURL;
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => loadImage(e.target.files[0]));
+['dragover','dragenter'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hot'); }));
+drop.addEventListener('drop', e => loadImage(e.dataTransfer.files[0]));
+
+/* ---------- live preview controls ---------- */
+seg.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  currentAnim = e.target.dataset.anim;
+  seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  e.target.classList.add('on');
+  cube.style.animation = `${animClass[currentAnim]} ${currentAnim==='slow'?20:(currentAnim==='tumble'?6:8)}s infinite ${currentAnim==='tumble'?'ease-in-out':'linear'}`;
+});
+
+durSlider.addEventListener('input', () => {
+  durVal.textContent = parseFloat(durSlider.value).toFixed(1) + ' s';
+});
+
+/* ---------- rotation math (matches CSS keyframes) ---------- */
+function rotationAt(anim, t) {
+  // t in [0,1]; returns {x,y,z} radians
+  const TAU = Math.PI * 2;
+  if (anim === 'slow') {
+    return { x: t*TAU, y: t*TAU, z: 0 };
+  }
+  if (anim === 'tumble') {
+    const seg = [
+      {x:0,   y:0,   z:0},
+      {x:72,  y:144, z:36},
+      {x:144, y:72,  z:-20},
+      {x:216, y:288, z:25},
+      {x:288, y:180, z:-15},
+      {x:360, y:360, z:0},
+    ];
+    const f = t * 5; const i = Math.min(4, Math.floor(f)); const k = f - i;
+    const a = seg[i], b = seg[i+1];
+    const lerp = (p,q)=> (p + (q-p)*k) * Math.PI/180;
+    return { x: lerp(a.x,b.x), y: lerp(a.y,b.y), z: lerp(a.z,b.z) };
+  }
+  // dynamic
+  let z;
+  if (t < 0.25)      z = 15 * (t/0.25);
+  else if (t < 0.5)  z = 15 * (1-(t-0.25)/0.25);
+  else if (t < 0.75) z = -15 * ((t-0.5)/0.25);
+  else               z = -15 * (1-(t-0.75)/0.25);
+  return { x: t*TAU, y: t*TAU, z: z*Math.PI/180 };
+}
+
+/* ---------- WebGL setup for export ---------- */
+const glcanvas = document.getElementById('glcanvas');
+let renderer, threeScene, camera, mesh;
+
+function initThree() {
+  renderer = new THREE.WebGLRenderer({ canvas: glcanvas, antialias: true, preserveDrawingBuffer: true, alpha: false });
+  renderer.setSize(360, 360, false);
+  renderer.setClearColor(0x07070b, 1);
+  threeScene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.z = 4.2;
+}
+
+function buildMesh() {
+  if (mesh) { threeScene.remove(mesh); mesh.geometry.dispose(); }
+  const tex = new THREE.Texture(imageEl);
+  tex.needsUpdate = true;
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.MeshBasicMaterial({ map: tex });
+  const geo = new THREE.BoxGeometry(2, 2, 2);
+  mesh = new THREE.Mesh(geo, mat);
+  // edge lines
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geo),
+    new THREE.LineBasicMaterial({ color: 0xff5e3a })
+  );
+  mesh.add(edges);
+  threeScene.add(mesh);
+}
+
+/* ---------- worker blob (avoids cross-origin worker error) ---------- */
+let workerBlobURL = null;
+async function getWorkerURL() {
+  if (workerBlobURL) return workerBlobURL;
+  const res = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+  const txt = await res.text();
+  workerBlobURL = URL.createObjectURL(new Blob([txt], { type: 'application/javascript' }));
+  return workerBlobURL;
+}
+
+/* ---------- export ---------- */
+exportBtn.addEventListener('click', async () => {
+  if (!imageEl) return;
+  exportBtn.disabled = true;
+  result.classList.remove('show');
+  progress.classList.add('show');
+  bar.style.width = '0%';
+  status.textContent = 'initialising…';
+
+  try {
+    if (!renderer) initThree();
+    buildMesh();
+    const workerURL = await getWorkerURL();
+
+    const fps = 24;
+    const duration = parseFloat(durSlider.value);
+    const total = Math.round(fps * duration);
+    const delay = Math.round(1000 / fps);
+
+    const gif = new GIF({
+      workers: 2,
+      quality: 10,
+      width: 360,
+      height: 360,
+      workerScript: workerURL,
+      dither: false
+    });
+
+    status.textContent = `rendering 0 / ${total} frames`;
+
+    // render frames sequentially, yielding so UI can update
+    for (let i = 0; i < total; i++) {
+      const t = i / total;
+      const r = rotationAt(currentAnim, t);
+      mesh.rotation.set(r.x, r.y, r.z);
+      renderer.render(threeScene, camera);
+      gif.addFrame(glcanvas, { copy: true, delay });
+      bar.style.width = ((i+1)/total * 50).toFixed(1) + '%';
+      status.textContent = `rendering ${i+1} / ${total} frames`;
+      if (i % 6 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+
+    gif.on('progress', p => {
+      bar.style.width = (50 + p*50).toFixed(1) + '%';
+      status.textContent = `encoding… ${Math.round(p*100)}%`;
+    });
+
+    gif.on('finished', blob => {
+      const url = URL.createObjectURL(blob);
+      outImg.src = url;
+      dl.href = url;
+      result.classList.add('show');
+      progress.classList.remove('show');
+      const kb = (blob.size/1024).toFixed(0);
+      status.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps`;
+      exportBtn.disabled = false;
+    });
+
+    status.textContent = 'encoding…';
+    gif.render();
+
+  } catch (err) {
+    console.error(err);
+    status.textContent = 'error: ' + err.message;
+    progress.classList.remove('show');
+    exportBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
