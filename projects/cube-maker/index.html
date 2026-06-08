@@ -258,12 +258,12 @@
 
 <div class="wrap">
 
-  <label class="drop" id="drop">
+  <div class="drop" id="drop">
     <div class="icon">⬡</div>
     <div class="big">Tap to upload an image</div>
     <div class="small">or drag &amp; drop · jpg / png</div>
     <input type="file" id="file" accept="image/*">
-  </label>
+  </div>
 
   <div class="stage empty" id="stage">
     <div class="scene" style="display:none" id="scene">
@@ -358,7 +358,7 @@ function loadImage(file) {
   imageEl.src = imageURL;
 }
 
-drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
 fileInput.addEventListener('change', e => loadImage(e.target.files[0]));
 ['dragover','dragenter'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
