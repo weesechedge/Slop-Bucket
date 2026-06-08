@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gerrymandering Dynamics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14161b;--panel:#1b1e25;--panel2:#21252e;--line:#2c313c;
+    --ink:#e9e7e1;--muted:#9aa0ab;--faint:#646b78;--accent:#e0903f;--blue:#5b8bd6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background-image:radial-gradient(circle at 12% -8%,rgba(224,144,63,.06),transparent 42%),radial-gradient(circle at 92% 0%,rgba(91,139,214,.06),transparent 40%)}
+  .nav{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .nav a{color:var(--muted);text-decoration:none}
+  .nav a:hover{color:var(--ink)}
+  .nav .here{color:var(--accent);font-weight:600}
+  .nav .sep{color:#3a4150}
+  .wrap{max-width:880px;margin:0 auto;padding:38px 20px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:26px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-bottom:11px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(28px,5.5vw,44px);line-height:1.04;letter-spacing:-.01em}
+  .sub{margin-top:13px;color:var(--muted);font-size:15px;max-width:68ch;line-height:1.6}
+  .sub b{color:var(--ink);font-weight:600}
+  .list{display:grid;gap:13px}
+  a.item{display:grid;grid-template-columns:34px 1fr auto;gap:16px;align-items:center;text-decoration:none;color:inherit;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;transition:background .12s,transform .12s,border-color .12s}
+  a.item:hover{background:var(--panel2);transform:translateY(-1px);border-color:#3c4350}
+  .num{font-family:'Fraunces',serif;font-weight:600;font-size:22px;color:var(--faint)}
+  .it-title{font-family:'Fraunces',serif;font-weight:600;font-size:19px;margin-bottom:4px}
+  .it-desc{color:var(--muted);font-size:13.5px;line-height:1.5}
+  .go{color:var(--faint);font-family:'IBM Plex Mono',monospace;font-size:13px}
+  a.item:hover .go{color:var(--accent)}
+  footer{margin-top:34px;color:var(--faint);font-size:12.5px}
+  footer a{color:var(--blue);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="../../">Slop-Bucket</a>
+  <span class="sep">/</span>
+  <span class="here">Gerrymandering Dynamics</span>
+</div>
+<div class="wrap">
+  <header>
+    <div class="kicker">Project · 4 interactives</div>
+    <h1>Gerrymandering Dynamics</h1>
+    <p class="sub">Four interactive explainers on how district lines and electoral systems turn <b>votes</b> into <b>seats</b> — moving from concrete map-drawing to the abstract seats–votes curve. The throughline: <b>disproportionality</b> (seats drifting from votes) is not the same as <b>unfairness</b> — a map is unfair when its vote→seat response is <b>asymmetric</b>, paying one party more seats than its rival for the very same vote share.</p>
+  </header>
+
+  <div class="list">
+    <a class="item" href="gerrymander-symmetry.html">
+      <div class="num">1</div>
+      <div>
+        <div class="it-title">The Symmetry Test</div>
+        <div class="it-desc">Twenty-five fixed voters (15 blue, 10 orange); only the district lines move. Watch cracking and packing bend the response off its mirror, with efficiency gap and partisan bias.</div>
+      </div>
+      <div class="go">open →</div>
+    </a>
+    <a class="item" href="districting-lab.html">
+      <div class="num">2</div>
+      <div>
+        <div class="it-title">Districting Lab</div>
+        <div class="it-desc">100 voters, five parties, 10 seats. Pick a map and slide the electorate to see disproportionality (Gallagher) and symmetry move together — or apart.</div>
+      </div>
+      <div class="go">open →</div>
+    </a>
+    <a class="item" href="seats-votes-curve.html">
+      <div class="num">3</div>
+      <div>
+        <div class="it-title">The Seats–Votes Curve</div>
+        <div class="it-desc">The classic two-party model: responsiveness (ρ) steepens the curve, bias (β) splits the parties apart. Cleanly separates disproportionality from unfairness.</div>
+      </div>
+      <div class="go">open →</div>
+    </a>
+    <a class="item" href="seats-votes-lab.html">
+      <div class="num">4</div>
+      <div>
+        <div class="it-title">Seats–Votes Lab · N parties</div>
+        <div class="it-desc">A multiparty seats–votes model: shared responsiveness plus per-party bias multipliers. Add or remove parties to see the structural fan versus the gerrymander.</div>
+      </div>
+      <div class="go">open →</div>
+    </a>
+  </div>
+
+  <footer>← <a href="../../">Back to the Slop-Bucket</a></footer>
+</div>
+</body>
+</html>

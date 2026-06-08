@@ -1,0 +1,27 @@
+{
+  "projects": [
+    {
+      "slug": "gerrymandering-dynamics",
+      "title": "Gerrymandering Dynamics",
+      "description": "Four interactive explainers on how district lines and electoral systems turn votes into seats — and why disproportionality is not the same as an unfair (asymmetric) map.",
+      "tags": ["gerrymandering", "districting", "seats-votes", "symmetry", "elections", "interactive", "politics"],
+      "date": "2026-06-08",
+      "path": "projects/gerrymandering-dynamics/",
+      "pages": [
+        { "title": "The Symmetry Test", "file": "gerrymander-symmetry.html", "description": "Fixed 60/40 electorate, only the lines move; cracking and packing vs the symmetry mirror, efficiency gap, partisan bias." },
+        { "title": "Districting Lab", "file": "districting-lab.html", "description": "100 voters, five parties, 10 seats; pick a map and move the electorate to watch Gallagher disproportionality and symmetry." },
+        { "title": "The Seats–Votes Curve", "file": "seats-votes-curve.html", "description": "Two-party model: responsiveness (rho) and bias (beta) separate disproportionality from unfairness." },
+        { "title": "Seats–Votes Lab · N parties", "file": "seats-votes-lab.html", "description": "Multiparty seats–votes with shared responsiveness and per-party bias multipliers; structural fan vs gerrymander." }
+      ]
+    },
+    {
+      "slug": "welcome",
+      "title": "Welcome to the Slop-Bucket",
+      "description": "The first thing published here — proves the publishing pipeline works end to end.",
+      "tags": ["meta", "welcome"],
+      "date": "2026-06-08",
+      "path": "projects/welcome/",
+      "pages": []
+    }
+  ]
+}

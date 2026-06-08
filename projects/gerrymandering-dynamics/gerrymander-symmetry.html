@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Symmetry Test — Districting Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15171c; --panel:#1c1f26; --panel2:#21252e; --line:#2c313c;
+    --ink:#e8e6e0; --muted:#9aa0ab; --faint:#646b78;
+    --blue:#5b8bd6; --blue-deep:#2f4f7d; --blue-soft:#2a3650;
+    --orange:#e0903f; --orange-deep:#7d4f22; --orange-soft:#3e3220;
+    --good:#6bbf8a; --bad:#d96f6f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;-webkit-font-smoothing:antialiased}
+  body{background-image:radial-gradient(circle at 20% -10%,rgba(91,139,214,.07),transparent 45%),radial-gradient(circle at 90% 0%,rgba(224,144,63,.06),transparent 40%);min-height:100vh}
+  .wrap{max-width:960px;margin:0 auto;padding:34px 20px 70px}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:26px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--orange);margin-bottom:10px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(28px,6vw,46px);line-height:1.02;letter-spacing:-.01em}
+  h1 em{font-style:italic;color:var(--blue)}
+  .sub{margin-top:12px;color:var(--muted);font-size:15px;max-width:62ch;line-height:1.55}
+  .sub b{color:var(--ink);font-weight:600}
+
+  .maps{display:flex;gap:8px;flex-wrap:wrap;margin:26px 0 22px}
+  .maps button{flex:1;min-width:150px;background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    padding:13px 14px;border-radius:11px;cursor:pointer;text-align:left;transition:.18s;font-family:'Archivo'}
+  .maps button:hover{border-color:#3c4350;color:var(--ink)}
+  .maps button.on{background:var(--panel2);border-color:var(--blue);color:var(--ink);box-shadow:0 0 0 1px var(--blue) inset}
+  .maps .lab{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:4px}
+  .maps button.on .lab{color:var(--blue)}
+  .maps .nm{font-weight:600;font-size:14.5px}
+
+  .grid2{display:grid;grid-template-columns:minmax(0,300px) 1fr;gap:24px;align-items:start}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h2{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);font-weight:500;margin-bottom:14px}
+
+  svg.map{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:16px;margin-top:14px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .sw{width:13px;height:13px;border-radius:3px;display:inline-block}
+
+  .swingrow{margin-top:18px}
+  .swingrow label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:8px;font-family:'IBM Plex Mono',monospace}
+  .swingrow .val{color:var(--ink)}
+  input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:5px;
+    background:linear-gradient(90deg,var(--orange),var(--line) 50%,var(--blue));outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--ink);cursor:pointer;border:3px solid var(--bg);box-shadow:0 1px 6px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--ink);cursor:pointer;border:3px solid var(--bg)}
+  .resetbtn{margin-top:10px;background:none;border:1px solid var(--line);color:var(--faint);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;letter-spacing:.05em}
+  .resetbtn:hover{color:var(--ink);border-color:#3c4350}
+
+  /* tallies */
+  .tally{display:flex;flex-direction:column;gap:9px}
+  .drow{display:grid;grid-template-columns:60px 1fr 64px;align-items:center;gap:11px;font-size:12.5px}
+  .drow .dn{font-family:'IBM Plex Mono',monospace;color:var(--faint);font-size:11px}
+  .bar{height:22px;border-radius:5px;overflow:hidden;display:flex;background:var(--panel2);border:1px solid var(--line)}
+  .bar i{display:block;height:100%}
+  .bar .b{background:var(--blue)}
+  .bar .o{background:var(--orange)}
+  .win{font-family:'IBM Plex Mono',monospace;font-size:11px;text-align:right;letter-spacing:.04em}
+  .win.b{color:var(--blue)} .win.o{color:var(--orange)}
+  .wst{font-size:11px;color:var(--faint);font-family:'IBM Plex Mono',monospace;margin-top:1px}
+
+  /* metrics */
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+  .m{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px}
+  .m .t{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .m .big{font-family:'Fraunces',serif;font-weight:600;font-size:26px;line-height:1}
+  .m .note{font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.4}
+  .split{display:flex;align-items:baseline;gap:6px}
+  .split .b{color:var(--blue)} .split .o{color:var(--orange)} .split .d{color:var(--faint);font-size:15px}
+
+  .verdict{margin-top:14px;border-radius:11px;padding:15px 16px;font-size:14px;line-height:1.5;border:1px solid var(--line);background:var(--panel2)}
+  .verdict .h{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin-bottom:5px;display:flex;align-items:center;gap:9px}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none}
+  .verdict.fair{border-color:rgba(107,191,138,.4)} .verdict.fair .dot{background:var(--good)} .verdict.fair .h{color:var(--good)}
+  .verdict.biased{border-color:rgba(217,111,111,.4)} .verdict.biased .dot{background:var(--bad)} .verdict.biased .h{color:var(--bad)}
+  .verdict b.b{color:var(--blue)} .verdict b.o{color:var(--orange)}
+
+  .chartwrap{margin-top:20px}
+  svg.chart{width:100%;height:auto;display:block}
+  .clegend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  .clegend span{display:flex;align-items:center;gap:7px}
+  .linek{width:22px;height:0;border-top:2px solid;display:inline-block}
+  .foot{margin-top:30px;border-top:1px solid var(--line);padding-top:16px;color:var(--faint);font-size:12.5px;line-height:1.6;max-width:70ch}
+  .foot code{font-family:'IBM Plex Mono',monospace;color:var(--muted)}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><a href="index.html" style="color:#e0903f;text-decoration:none;font-weight:600">Gerrymandering Dynamics</a><span style="color:#3a4150;margin:0 4px">&#8212;</span><span style="color:#e9e7e1;font-weight:600">Symmetry Test</span> <span style="color:#3a4150">&#183;</span> <a href="districting-lab.html" style="color:#9aa0ab;text-decoration:none">Districting Lab</a> <span style="color:#3a4150">&#183;</span> <a href="seats-votes-curve.html" style="color:#9aa0ab;text-decoration:none">Seats-Votes Curve</a> <span style="color:#3a4150">&#183;</span> <a href="seats-votes-lab.html" style="color:#9aa0ab;text-decoration:none">Seats-Votes Lab</a></nav>
+<div class="wrap">
+  <header>
+    <div class="kicker">Districting · single-member plurality</div>
+    <h1>The same voters.<br>Any winner you <em>like</em>.</h1>
+    <p class="sub">Twenty-five voters, fixed. <b>15 blue, 10 orange</b> — a permanent 60/40 split that never changes. Only the <b>district lines</b> move. The fairness test isn't the shape: it's whether the map's <b>vote→seat response is symmetric</b> — would 50% of the vote buy each side the same number of seats?</p>
+  </header>
+
+  <div class="maps" id="maps"></div>
+
+  <div class="grid2">
+    <div>
+      <div class="card">
+        <h2>Voter map</h2>
+        <svg class="map" id="mapsvg" viewBox="0 0 300 300"></svg>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--blue)"></i>Blue voter</span>
+          <span><i class="sw" style="background:var(--orange)"></i>Orange voter</span>
+          <span><i class="sw" style="background:none;border:2px solid #cfd3da"></i>District</span>
+        </div>
+        <div class="swingrow">
+          <label><span>Statewide swing</span><span class="val" id="swingval">even</span></label>
+          <input type="range" id="swing" min="-40" max="40" value="0" step="1">
+          <button class="resetbtn" id="reset">reset to 60/40</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="metrics">
+        <div class="m">
+          <div class="t">Statewide vote</div>
+          <div class="big split"><span class="b" id="voteB">60</span><span class="d">/</span><span class="o" id="voteO">40</span></div>
+          <div class="note">share of voters, blue / orange</div>
+        </div>
+        <div class="m">
+          <div class="t">Seats won</div>
+          <div class="big split"><span class="b" id="seatB">3</span><span class="d">/</span><span class="o" id="seatO">2</span></div>
+          <div class="note">5 single-member districts</div>
+        </div>
+        <div class="m">
+          <div class="t">Efficiency gap</div>
+          <div class="big" id="egVal">0%</div>
+          <div class="note" id="egNote">wasted-vote imbalance</div>
+        </div>
+        <div class="m">
+          <div class="t">Symmetry / bias</div>
+          <div class="big" id="biasVal">0.0</div>
+          <div class="note" id="biasNote">seat bias at a tied vote</div>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <div class="h"><span class="dot"></span><span id="vh">—</span></div>
+        <div id="vbody"></div>
+      </div>
+
+      <div class="card chartwrap">
+        <h2>Seats–votes curve · the symmetry test</h2>
+        <svg class="chart" id="chart" viewBox="0 0 380 280"></svg>
+        <div class="clegend">
+          <span><i class="linek" style="border-color:var(--blue)"></i>Blue's actual response</span>
+          <span><i class="linek" style="border-color:var(--faint);border-top-style:dashed"></i>Its mirror (a fair map)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card tally" id="tally" style="margin-top:24px"></div>
+
+  <div class="foot">
+    <b style="color:var(--muted)">Reading it:</b> A <b style="color:var(--muted)">symmetric</b> map's solid curve sits on top of its dashed mirror — swap the parties' vote shares and the seats swap too. A <b style="color:var(--muted)">gerrymander</b> pulls the solid curve away from the mirror: at a 50/50 vote (the centre line) one side already holds more seats, because cracking & packing make that side's votes <code>cheaper</code> per seat. Bias = the vertical gap at the centre line. Disproportional ≠ unfair; <em style="color:var(--muted)">asymmetric</em> is unfair.
+  </div>
+</div>
+
+<script>
+/* ---------- fixed electorate: 5x5, blue = cols 0..2, orange = cols 3..4 ---------- */
+const N=5, NUMD=5, MAJ=3;
+function party(r,c){ return c<=2 ? 'B':'O'; }
+
+/* per-voter blue-lean, mirrored around 0.5 so the electorate itself is unbiased.
+   votes Blue when lean+swing > 0.5. spread gives a smooth seats-votes curve.   */
+const spread=[0.07,0.13,0.19,0.25,0.31,0.10,0.16,0.22,0.28,0.34,0.08,0.20,0.30,0.12,0.24];
+let bi=0, oi=0;
+const lean=[];
+for(let r=0;r<N;r++){lean[r]=[];for(let c=0;c<N;c++){
+  if(party(r,c)==='B'){ lean[r][c]=0.5+spread[bi%spread.length]; bi++; }
+  else { lean[r][c]=0.5-spread[oi%spread.length]; oi++; }
+}}
+
+/* ---------- three district plans (each id 0..4 appears exactly 5x, contiguous) ---------- */
+const PLANS={
+  columns:{ name:'Compact columns', tag:'neutral baseline',
+    grid:[[0,1,2,3,4],[0,1,2,3,4],[0,1,2,3,4],[0,1,2,3,4],[0,1,2,3,4]] },
+  rows:{ name:'Gerrymander · Blue', tag:'crack orange',
+    grid:[[0,0,0,0,0],[1,1,1,1,1],[2,2,2,2,2],[3,3,3,3,3],[4,4,4,4,4]] },
+  snake:{ name:'Gerrymander · Orange', tag:'pack + crack blue',
+    grid:[[0,0,2,2,2],[0,0,2,2,3],[0,1,3,3,3],[1,1,4,4,3],[1,1,4,4,4]] }
+};
+let current='columns';
+
+/* ---------- core computation at a given swing ---------- */
+function votesAt(swing){ // returns vote grid 'B'/'O'
+  const v=[];
+  for(let r=0;r<N;r++){v[r]=[];for(let c=0;c<N;c++){
+    v[r][c]=(lean[r][c]+swing>0.5)?'B':'O';
+  }}
+  return v;
+}
+function tally(plan,vote){
+  const d=Array.from({length:NUMD},()=>({B:0,O:0}));
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){ d[plan.grid[r][c]][vote[r][c]]++; }
+  return d;
+}
+function blueVoteShare(vote){let b=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(vote[r][c]==='B')b++;return b/(N*N);}
+function blueSeats(d){let s=0;for(const x of d)if(x.B>x.O)s++;return s;}
+
+/* efficiency gap: wasted = loser's votes + winner's surplus over MAJ */
+function efficiencyGap(d){
+  let wB=0,wO=0,tot=0;
+  for(const x of d){ tot+=x.B+x.O;
+    if(x.B>x.O){ wB+=x.B-MAJ; wO+=x.O; } else { wO+=x.O-MAJ; wB+=x.B; }
+  }
+  return (wB-wO)/tot; // >0 : blue wastes more  -> favours orange
+}
+
+/* partisan bias: at the swing giving the closest to a 50/50 vote, how far is
+   blue's seat share from half. positive => map favours blue.               */
+function partisanBias(plan){
+  let best=1e9, bestSeats=0;
+  for(let s=-50;s<=50;s++){
+    const sw=s/100, vote=votesAt(sw), vs=blueVoteShare(vote);
+    const diff=Math.abs(vs-0.5);
+    if(diff<best){ best=diff; bestSeats=blueSeats(tally(plan,vote)); }
+  }
+  return bestSeats/NUMD - 0.5; // share points; *5 = seats
+}
+
+/* ---------- rendering ---------- */
+const PAD=14, CELL=(300-PAD*2)/N;
+function colFor(v,ln){
+  const strong=Math.min(0.55+Math.abs(ln-0.5)*1.4,1);
+  return v==='B'?`rgba(91,139,214,${strong})`:`rgba(224,144,63,${strong})`;
+}
+function drawMap(plan,vote){
+  const g=plan.grid; let s='';
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const x=PAD+c*CELL,y=PAD+r*CELL;
+    s+=`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="3" fill="${colFor(vote[r][c],lean[r][c])}" stroke="#15171c" stroke-width="1.2"/>`;
+  }
+  // district borders: thick line where neighbours differ + outer edge
+  const T=3.4, col='#d7dbe2';
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const x=PAD+c*CELL,y=PAD+r*CELL,id=g[r][c];
+    if(c===N-1||g[r][c+1]!==id) s+=`<line x1="${x+CELL}" y1="${y}" x2="${x+CELL}" y2="${y+CELL}" stroke="${col}" stroke-width="${T}" stroke-linecap="round"/>`;
+    if(c===0) s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+CELL}" stroke="${col}" stroke-width="${T}" stroke-linecap="round"/>`;
+    if(r===N-1||g[r+1][c]!==id) s+=`<line x1="${x}" y1="${y+CELL}" x2="${x+CELL}" y2="${y+CELL}" stroke="${col}" stroke-width="${T}" stroke-linecap="round"/>`;
+    if(r===0) s+=`<line x1="${x}" y1="${y}" x2="${x+CELL}" y2="${y}" stroke="${col}" stroke-width="${T}" stroke-linecap="round"/>`;
+  }
+  document.getElementById('mapsvg').innerHTML=s;
+}
+
+function drawTally(plan,d){
+  let s='<h2>District by district · wasted votes</h2>';
+  for(let i=0;i<NUMD;i++){
+    const x=d[i], total=x.B+x.O, bw=x.B/total*100;
+    const blueWin=x.B>x.O;
+    const wb = blueWin ? x.B-MAJ : x.B;
+    const wo = blueWin ? x.O : x.O-MAJ;
+    s+=`<div class="drow">
+      <div>
+        <div class="dn">DIST ${i+1}</div>
+        <div class="wst">wasted ${wb}B · ${wo}O</div>
+      </div>
+      <div class="bar"><i class="b" style="width:${bw}%"></i><i class="o" style="width:${100-bw}%"></i></div>
+      <div class="win ${blueWin?'b':'o'}">${x.B}–${x.O} ${blueWin?'BLUE':'ORANGE'}</div>
+    </div>`;
+  }
+  document.getElementById('tally').innerHTML=s;
+}
+
+/* seats-votes chart + its point-mirror */
+function drawChart(plan){
+  const W=380,H=280,L=46,R=14,Tp=14,B=40, pw=W-L-R, ph=H-Tp-B;
+  const X=v=>L+v*pw, Y=s=>Tp+(1-s)*ph;
+  const pts=[];
+  for(let sw=-0.45;sw<=0.4501;sw+=0.01){
+    const vote=votesAt(sw); pts.push([blueVoteShare(vote), blueSeats(tally(plan,vote))/NUMD]);
+  }
+  pts.sort((a,b)=>a[0]-b[0]);
+  let s='';
+  // grid
+  for(let i=0;i<=5;i++){const gx=X(i/5);s+=`<line x1="${gx}" y1="${Tp}" x2="${gx}" y2="${Tp+ph}" stroke="#262b34" stroke-width="1"/>`;}
+  for(let i=0;i<=5;i++){const gy=Y(i/5);s+=`<line x1="${L}" y1="${gy}" x2="${W-R}" y2="${gy}" stroke="#262b34" stroke-width="1"/>`;}
+  // 50/50 crosshair
+  s+=`<line x1="${X(.5)}" y1="${Tp}" x2="${X(.5)}" y2="${Tp+ph}" stroke="#3a4150" stroke-width="1.4" stroke-dasharray="2 3"/>`;
+  s+=`<line x1="${L}" y1="${Y(.5)}" x2="${W-R}" y2="${Y(.5)}" stroke="#3a4150" stroke-width="1.4" stroke-dasharray="2 3"/>`;
+  // mirror (fair reference) = point reflection of actual through (.5,.5)
+  const mir=pts.map(p=>[1-p[0],1-p[1]]).sort((a,b)=>a[0]-b[0]);
+  const path=a=>a.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(' ');
+  s+=`<path d="${path(mir)}" fill="none" stroke="#646b78" stroke-width="2" stroke-dasharray="4 4"/>`;
+  s+=`<path d="${path(pts)}" fill="none" stroke="#5b8bd6" stroke-width="2.6"/>`;
+  // current point
+  const sw=parseInt(document.getElementById('swing').value)/100;
+  const cv=votesAt(sw), cvs=blueVoteShare(cv), css=blueSeats(tally(plan,cv))/NUMD;
+  s+=`<circle cx="${X(cvs)}" cy="${Y(css)}" r="5" fill="#e8e6e0" stroke="#15171c" stroke-width="2"/>`;
+  // axes labels
+  s+=`<text x="${L+pw/2}" y="${H-8}" fill="#9aa0ab" font-size="11" font-family="IBM Plex Mono" text-anchor="middle">Blue vote share →</text>`;
+  s+=`<text x="14" y="${Tp+ph/2}" fill="#9aa0ab" font-size="11" font-family="IBM Plex Mono" text-anchor="middle" transform="rotate(-90 14 ${Tp+ph/2})">Blue seat share →</text>`;
+  s+=`<text x="${X(.5)}" y="${Tp+ph+13}" fill="#646b78" font-size="9.5" font-family="IBM Plex Mono" text-anchor="middle">50%</text>`;
+  document.getElementById('chart').innerHTML=s;
+}
+
+/* ---------- update loop ---------- */
+function render(){
+  const plan=PLANS[current];
+  const swing=parseInt(document.getElementById('swing').value)/100;
+  const vote=votesAt(swing);
+  const d=tally(plan,vote);
+  const bv=blueVoteShare(vote), sB=blueSeats(d), sO=NUMD-sB;
+
+  drawMap(plan,vote); drawTally(plan,d); drawChart(plan);
+
+  document.getElementById('voteB').textContent=Math.round(bv*100);
+  document.getElementById('voteO').textContent=Math.round((1-bv)*100);
+  document.getElementById('seatB').textContent=sB;
+  document.getElementById('seatO').textContent=sO;
+
+  const eg=efficiencyGap(d);
+  const egEl=document.getElementById('egVal');
+  egEl.textContent=(eg>=0?'+':'')+(eg*100).toFixed(0)+'%';
+  egEl.style.color = Math.abs(eg)<0.001?'var(--ink)':(eg>0?'var(--orange)':'var(--blue)');
+  document.getElementById('egNote').textContent = Math.abs(eg)<0.001
+    ? 'wasted votes balanced'
+    : (eg>0?'orange wastes fewer → favours orange':'blue wastes fewer → favours blue');
+
+  const bias=partisanBias(plan); // share points
+  const seatsBias=bias*NUMD;
+  const bEl=document.getElementById('biasVal');
+  bEl.textContent=(bias>=0?'+':'')+seatsBias.toFixed(1)+' seats';
+  bEl.style.color = Math.abs(seatsBias)<0.5?'var(--good)':(bias>0?'var(--blue)':'var(--orange)');
+  document.getElementById('biasNote').textContent = Math.abs(seatsBias)<0.5
+    ? 'a tied vote → a tied chamber'
+    : `at 50/50, ${bias>0?'blue':'orange'} holds the extra`;
+
+  // verdict
+  const fair=Math.abs(seatsBias)<0.5;
+  const v=document.getElementById('verdict');
+  v.className='verdict '+(fair?'fair':'biased');
+  document.getElementById('vh').textContent=fair?'Symmetric — fair':'Asymmetric — gerrymandered';
+  const fav = bias>0?'<b class="b">blue</b>':'<b class="o">orange</b>';
+  document.getElementById('vbody').innerHTML = fair
+    ? 'Slide the swing to a tie: the chamber splits evenly, and the solid curve lands on its dashed mirror. The line-drawing favours no one — the same vote share buys either party the same seats.'
+    : `Drag the swing until the vote is 50/50: ${fav} still holds <b>${(Math.abs(seatsBias)+2.5).toFixed(1)}-ish</b> seats. The solid curve has pulled off its mirror — identical vote shares pay out differently depending on the party. That gap is the gerrymander, and it survives no matter where the 60/40 baseline sits.`;
+
+  document.getElementById('swingval').textContent =
+    swing===0?'even (60/40)':(swing>0?`+${(swing*100).toFixed(0)} → blue`:`${(swing*100).toFixed(0)} → orange`);
+}
+
+/* ---------- wiring ---------- */
+function buildButtons(){
+  const m=document.getElementById('maps');
+  m.innerHTML=Object.entries(PLANS).map(([k,p])=>
+    `<button data-k="${k}" class="${k===current?'on':''}"><span class="lab">${p.tag}</span><span class="nm">${p.name}</span></button>`).join('');
+  m.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    current=b.dataset.k;
+    m.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===current));
+    render();
+  });
+}
+document.getElementById('swing').addEventListener('input',render);
+document.getElementById('reset').onclick=()=>{document.getElementById('swing').value=0;render();};
+buildButtons();
+render();
+</script>
+</body>
+</html>

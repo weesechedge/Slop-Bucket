@@ -6,14 +6,9 @@
 <title>Slop-Bucket</title>
 <style>
   :root {
-    --bg: #0f1117;
-    --card: #1a1d27;
-    --card-hover: #222634;
-    --text: #e6e8ee;
-    --muted: #9aa0ad;
-    --accent: #6ea8fe;
-    --border: #2a2e3b;
-    --tag: #2a2e3b;
+    --bg: #0f1117; --card: #1a1d27; --card-hover: #222634;
+    --text: #e6e8ee; --muted: #9aa0ad; --accent: #6ea8fe;
+    --border: #2a2e3b; --tag: #2a2e3b;
   }
   @media (prefers-color-scheme: light) {
     :root {
@@ -28,7 +23,7 @@
     font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   .wrap { max-width: 880px; margin: 0 auto; padding: 40px 20px 80px; }
-  header { margin-bottom: 28px; }
+  header { margin-bottom: 20px; }
   h1 { font-size: 2rem; margin: 0 0 6px; letter-spacing: -0.02em; }
   .sub { color: var(--muted); margin: 0; }
   .search-row { position: sticky; top: 0; background: var(--bg); padding: 16px 0; z-index: 5; }
@@ -38,14 +33,23 @@
   }
   #search:focus { border-color: var(--accent); }
   .count { color: var(--muted); font-size: 0.85rem; margin: 4px 2px 16px; }
-  .grid { display: grid; gap: 12px; }
-  a.card {
-    display: block; text-decoration: none; color: inherit; background: var(--card);
-    border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; transition: background .12s, transform .12s;
+  .grid { display: grid; gap: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 20px; transition: background .12s;
   }
-  a.card:hover { background: var(--card-hover); transform: translateY(-1px); }
-  .card h2 { margin: 0 0 4px; font-size: 1.15rem; }
-  .card p { margin: 0 0 10px; color: var(--muted); font-size: 0.95rem; }
+  .card:hover { background: var(--card-hover); }
+  .card-title { display: inline-flex; align-items: baseline; gap: 9px; text-decoration: none; color: inherit; }
+  .card-title h2 { margin: 0; font-size: 1.2rem; }
+  .badge { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .card-title:hover h2 { color: var(--accent); }
+  .card p.desc { margin: 7px 0 11px; color: var(--muted); font-size: 0.95rem; }
+  .sublist { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .sublist a {
+    text-decoration: none; font-size: 0.8rem; color: var(--muted);
+    background: var(--tag); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px;
+  }
+  .sublist a:hover { color: var(--accent); border-color: var(--accent); }
   .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .tag { background: var(--tag); color: var(--muted); font-size: 0.75rem; padding: 3px 9px; border-radius: 999px; }
   .date { color: var(--muted); font-size: 0.78rem; margin-left: auto; }
@@ -59,25 +63,25 @@
 <div class="wrap">
   <header>
     <h1>🪣 Slop-Bucket</h1>
-    <p class="sub">A bucket of published pages. Search below.</p>
+    <p class="sub">Published projects. Search across projects and the pages inside them.</p>
   </header>
 
   <div class="search-row">
-    <input id="search" type="search" placeholder="Search by title, description, or tag…" autocomplete="off" autofocus />
+    <input id="search" type="search" placeholder="Search projects, pages, tags…" autocomplete="off" autofocus />
   </div>
   <div class="count" id="count"></div>
 
   <div class="grid" id="grid"></div>
-  <div class="empty" id="empty" hidden>No pages match your search.</div>
+  <div class="empty" id="empty" hidden>No projects match your search.</div>
 
   <footer>
-    Add pages by dropping HTML into <code>pages/</code> and appending to <code>pages.json</code>.
+    Each project is a folder under <code>projects/</code> with its own <code>index.html</code> hub; the list lives in <code>projects.json</code>.
     &nbsp;·&nbsp; <a href="https://github.com/weesechedge/Slop-Bucket">Source</a>
   </footer>
 </div>
 
 <script>
-  let PAGES = [];
+  let PROJECTS = [];
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
   const countEl = document.getElementById('count');
@@ -92,34 +96,44 @@
     const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
     return safe.replace(re, '<mark>$1</mark>');
   }
+  function haystack(p) {
+    return [p.title, p.description, (p.tags || []).join(' '),
+            (p.pages || []).map(s => s.title + ' ' + (s.description || '')).join(' ')]
+            .join(' ').toLowerCase();
+  }
 
   function render(q) {
-    q = (q || '').trim().toLowerCase();
-    const matches = PAGES.filter(p => {
-      if (!q) return true;
-      const hay = [p.title, p.description, (p.tags || []).join(' ')].join(' ').toLowerCase();
-      return hay.includes(q);
-    });
-    grid.innerHTML = matches.map(p => `
-      <a class="card" href="${esc(p.path)}">
-        <h2>${highlight(p.title || p.slug, q)}</h2>
-        ${p.description ? `<p>${highlight(p.description, q)}</p>` : ''}
+    q = (q || '').trim();
+    const ql = q.toLowerCase();
+    const matches = PROJECTS.filter(p => !ql || haystack(p).includes(ql));
+    grid.innerHTML = matches.map(p => {
+      const n = (p.pages || []).length;
+      const badge = n > 0 ? `<span class="badge">${n} page${n === 1 ? '' : 's'}</span>` : '';
+      const subs = (p.pages || []).map(s =>
+        `<a href="${esc(p.path + s.file)}" title="${esc(s.description || '')}">${highlight(s.title, q)}</a>`
+      ).join('');
+      return `
+      <div class="card">
+        <a class="card-title" href="${esc(p.path)}"><h2>${highlight(p.title, q)}</h2>${badge}</a>
+        ${p.description ? `<p class="desc">${highlight(p.description, q)}</p>` : ''}
+        ${subs ? `<div class="sublist">${subs}</div>` : ''}
         <div class="meta">
           ${(p.tags || []).map(t => `<span class="tag">${highlight(t, q)}</span>`).join('')}
           ${p.date ? `<span class="date">${esc(p.date)}</span>` : ''}
         </div>
-      </a>`).join('');
+      </div>`;
+    }).join('');
     empty.hidden = matches.length > 0;
-    countEl.textContent = `${matches.length} of ${PAGES.length} page${PAGES.length === 1 ? '' : 's'}`;
+    countEl.textContent = `${matches.length} of ${PROJECTS.length} project${PROJECTS.length === 1 ? '' : 's'}`;
   }
 
-  fetch('pages.json?v=' + Date.now())
+  fetch('projects.json?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
-      PAGES = (data.pages || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      PROJECTS = (data.projects || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       render('');
     })
-    .catch(() => { countEl.textContent = 'Could not load pages.json'; });
+    .catch(() => { countEl.textContent = 'Could not load projects.json'; });
 
   search.addEventListener('input', e => render(e.target.value));
 </script>

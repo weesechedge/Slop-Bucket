@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Seats–Votes Curve</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14161b;--panel:#1b1e25;--panel2:#21252e;--line:#2c313c;
+    --ink:#e9e7e1;--muted:#9aa0ab;--faint:#646b78;
+    --B:#5b8bd6;--R:#d2605f;--good:#6bbf8a;--warn:#e0c060;--bad:#d96f6f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background-image:radial-gradient(circle at 14% -8%,rgba(91,139,214,.07),transparent 44%),radial-gradient(circle at 88% 0%,rgba(210,96,95,.06),transparent 40%)}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 70px}
+  header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--B);margin-bottom:10px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(27px,5.5vw,44px);line-height:1.03;letter-spacing:-.01em}
+  .sub{margin-top:11px;color:var(--muted);font-size:14px;max-width:66ch;line-height:1.55}
+  .sub b{color:var(--ink);font-weight:600}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 18px}
+  .presets button{background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:9px 14px;border-radius:9px;cursor:pointer;font-family:'Archivo';font-size:13px;font-weight:500;transition:.15s}
+  .presets button:hover{border-color:#3c4350;color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+  @media(max-width:740px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  svg.chart{width:100%;height:auto;display:block;cursor:crosshair}
+  .clegend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)}
+  .clegend span{display:flex;align-items:center;gap:7px}
+  .linek{width:22px;height:0;border-top:2.6px solid;display:inline-block}
+
+  .ctrl{margin-bottom:20px}
+  .ctrl .lab{display:flex;justify-content:space-between;align-items:baseline;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--muted);margin-bottom:9px}
+  .ctrl .lab b{color:var(--ink);font-size:15px;font-weight:600}
+  input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--ink);cursor:pointer;border:3px solid var(--bg);box-shadow:0 1px 6px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--ink);cursor:pointer;border:3px solid var(--bg)}
+  .interp{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.45;min-height:32px}
+  .interp b{color:var(--ink)}
+
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px;margin-top:12px}
+  .stat .t{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .stat .big{font-family:'Fraunces',serif;font-weight:600;font-size:22px;line-height:1.05}
+  .stat .note{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+  .tag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:5px;margin-top:8px;letter-spacing:.05em}
+  .tag.ok{background:rgba(107,191,138,.16);color:var(--good)}
+  .tag.no{background:rgba(217,111,111,.16);color:var(--bad)}
+
+  .foot{margin-top:26px;border-top:1px solid var(--line);padding-top:15px;color:var(--faint);font-size:12px;line-height:1.65;max-width:80ch}
+  .foot b{color:var(--muted)} .foot em{color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><a href="index.html" style="color:#e0903f;text-decoration:none;font-weight:600">Gerrymandering Dynamics</a><span style="color:#3a4150;margin:0 4px">&#8212;</span><a href="gerrymander-symmetry.html" style="color:#9aa0ab;text-decoration:none">Symmetry Test</a> <span style="color:#3a4150">&#183;</span> <a href="districting-lab.html" style="color:#9aa0ab;text-decoration:none">Districting Lab</a> <span style="color:#3a4150">&#183;</span> <span style="color:#e9e7e1;font-weight:600">Seats-Votes Curve</span> <span style="color:#3a4150">&#183;</span> <a href="seats-votes-lab.html" style="color:#9aa0ab;text-decoration:none">Seats-Votes Lab</a></nav>
+<div class="wrap">
+  <header>
+    <div class="kicker">Seats–votes model · bias + responsiveness</div>
+    <h1>Two dials, one fair setting.</h1>
+    <p class="sub">Each axis is a party's <b>own</b> share. The dashed diagonal is proportionality (seats = votes). <b>Responsiveness</b> (ρ) bends the curve's steepness; <b>bias</b> (β) slides Blue and Red apart. The map is <b>symmetric</b> exactly when the two curves coincide — and <b>disproportionality</b> is just the curve's distance from the diagonal, which responsiveness alone controls.</p>
+  </header>
+
+  <div class="presets" id="presets"></div>
+
+  <div class="grid">
+    <div class="card">
+      <svg class="chart" id="chart" viewBox="0 0 470 430"></svg>
+      <div class="clegend">
+        <span><i class="linek" style="border-color:var(--B)"></i>Blue: its votes → its seats</span>
+        <span><i class="linek" style="border-color:var(--R)"></i>Red: its votes → its seats</span>
+        <span><i class="linek" style="border-color:var(--faint);border-top-style:dashed"></i>Proportional</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="ctrl">
+        <div class="lab"><span>RESPONSIVENESS  ρ</span><b id="rhoV">2.5</b></div>
+        <input type="range" id="rho" min="30" max="800" value="250">
+        <div class="interp" id="rhoI"></div>
+      </div>
+      <div class="ctrl">
+        <div class="lab"><span>BIAS  β</span><b id="betaV">0.0</b></div>
+        <input type="range" id="beta" min="-200" max="200" value="0">
+        <div class="interp" id="betaI"></div>
+      </div>
+      <div class="ctrl">
+        <div class="lab"><span>BLUE VOTE (marker)</span><b id="voteV">55%</b></div>
+        <input type="range" id="vote" min="5" max="95" value="55">
+      </div>
+
+      <div class="stat">
+        <div class="t">Symmetry</div>
+        <div class="big" id="symBig"></div>
+        <div class="note" id="symNote"></div>
+        <span class="tag" id="symTag"></span>
+      </div>
+      <div class="stat">
+        <div class="t">At the marker</div>
+        <div class="big" id="mkBig"></div>
+        <div class="note" id="mkNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>What each move shows.</b> Set <em>ρ = 1</em> and the curves lie on the diagonal — perfectly proportional, zero seat bonus. Push <em>ρ</em> up and the S-curve steepens: small leads convert to large majorities (responsive), and the shaded gap from the diagonal — the disproportionality — grows with it. They are the same fact. Now move <em>β</em> off zero: Blue and Red separate, and the vertical gap between them at the 50% line is the bias — the seats one party gets that the other wouldn't at the identical vote share. Fairness-as-symmetry is the single demand <em>β = 0</em>; it says nothing about ρ. Choosing ρ — proportional mirror, decisive majority-maker, or near winner-take-all — is the open value question a fair process still has to answer.
+  </div>
+</div>
+
+<script>
+const logit=v=>Math.log(v/(1-v));
+const logistic=z=>1/(1+Math.exp(-z));
+let rho=2.5, beta=0, vote=0.55;
+
+const PRESETS=[
+  {nm:'Proportional',rho:1,beta:0},
+  {nm:'Cube law (ρ≈3)',rho:3,beta:0},
+  {nm:'Near winner-take-all',rho:7,beta:0},
+  {nm:'Gerrymandered (β≠0)',rho:2.6,beta:1.15}
+];
+function sBlue(v){return logistic(rho*logit(v)+beta);}
+function sRed(v){return logistic(rho*logit(v)-beta);}
+
+// geometry
+const W=470,H=430,L=52,Rm=16,T=16,Bm=48, pw=W-L-Rm, ph=H-T-Bm;
+const X=v=>L+v*pw, Y=s=>T+(1-s)*ph;
+
+function curvePath(fn){
+  let d='';
+  for(let i=0;i<=120;i++){const v=0.012+i/120*0.976;const p=`${X(v).toFixed(1)} ${Y(fn(v)).toFixed(1)}`;d+=(i?'L':'M')+p;}
+  return d;
+}
+function draw(){
+  let s='';
+  // grid + ticks
+  for(let i=0;i<=4;i++){const t=i/4;
+    s+=`<line x1="${X(t)}" y1="${T}" x2="${X(t)}" y2="${T+ph}" stroke="#23282f" stroke-width="1"/>`;
+    s+=`<line x1="${L}" y1="${Y(t)}" x2="${L+pw}" y2="${Y(t)}" stroke="#23282f" stroke-width="1"/>`;
+    s+=`<text x="${X(t)}" y="${T+ph+16}" fill="#646b78" font-size="10" font-family="IBM Plex Mono" text-anchor="middle">${t*100|0}%</text>`;
+    s+=`<text x="${L-8}" y="${Y(t)+3.5}" fill="#646b78" font-size="10" font-family="IBM Plex Mono" text-anchor="end">${t*100|0}%</text>`;
+  }
+  // disproportionality shading: between Blue curve and diagonal
+  let up='',dn='';
+  for(let i=0;i<=120;i++){const v=0.012+i/120*0.976;up+=(i?'L':'M')+`${X(v).toFixed(1)} ${Y(sBlue(v)).toFixed(1)}`;}
+  for(let i=120;i>=0;i--){const v=0.012+i/120*0.976;dn+='L'+`${X(v).toFixed(1)} ${Y(v).toFixed(1)}`;}
+  s+=`<path d="${up+dn}Z" fill="rgba(91,139,214,.10)" stroke="none"/>`;
+  // diagonal (proportional)
+  s+=`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="#646b78" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+  // centre
+  s+=`<circle cx="${X(.5)}" cy="${Y(.5)}" r="2.6" fill="#646b78"/>`;
+  // curves
+  s+=`<path d="${curvePath(sRed)}" fill="none" stroke="var(--R)" stroke-width="2.8" stroke-linejoin="round"/>`;
+  s+=`<path d="${curvePath(sBlue)}" fill="none" stroke="var(--B)" stroke-width="2.8" stroke-linejoin="round"/>`;
+  // marker
+  const sb=sBlue(vote), sr=sRed(vote);
+  s+=`<line x1="${X(vote)}" y1="${T}" x2="${X(vote)}" y2="${T+ph}" stroke="#3a4150" stroke-width="1.2" stroke-dasharray="2 3"/>`;
+  s+=`<line x1="${L}" y1="${Y(sb)}" x2="${X(vote)}" y2="${Y(sb)}" stroke="var(--B)" stroke-width="1" stroke-dasharray="2 3" opacity=".6"/>`;
+  s+=`<circle cx="${X(vote)}" cy="${Y(sb)}" r="5" fill="var(--B)" stroke="#14161b" stroke-width="2"/>`;
+  s+=`<circle cx="${X(vote)}" cy="${Y(sr)}" r="4.5" fill="var(--R)" stroke="#14161b" stroke-width="2"/>`;
+  // axis titles
+  s+=`<text x="${L+pw/2}" y="${H-6}" fill="#9aa0ab" font-size="11" font-family="IBM Plex Mono" text-anchor="middle">a party's own VOTE share →</text>`;
+  s+=`<text x="14" y="${T+ph/2}" fill="#9aa0ab" font-size="11" font-family="IBM Plex Mono" text-anchor="middle" transform="rotate(-90 14 ${T+ph/2})">its own SEAT share →</text>`;
+  document.getElementById('chart').innerHTML=s;
+}
+
+function rhoInterp(){
+  if(rho<0.9)return 'Below 1: <b>anti-majoritarian</b> — the leader is under-rewarded. Real single-member districts are almost never here.';
+  if(rho<=1.1)return '<b>≈ proportional</b>: slope 1, seats track votes, no winner\u2019s bonus.';
+  if(rho<2)return '<b>Mildly responsive</b>: a modest seat bonus for the leader.';
+  if(rho<4)return '<b>Responsive</b> — roughly the cube-law range typical of real FPTP systems.';
+  return '<b>Near winner-take-all</b>: a tiny lead near 50% sweeps the chamber. Maximal responsiveness, maximal disproportionality.';
+}
+function betaInterp(){
+  if(Math.abs(beta)<0.06)return '<b>Zero bias</b>: Blue and Red curves coincide. The lines favour neither party — the only thing fairness-as-symmetry actually requires.';
+  const who=beta>0?'Blue':'Red';
+  return `Biased toward <b>${who}</b>: the curves split. ${who} converts the same vote share into more seats than its rival would.`;
+}
+
+function render(){
+  draw();
+  document.getElementById('rhoV').textContent=rho.toFixed(rho<1?2:1);
+  document.getElementById('betaV').textContent=(beta>=0?'+':'')+beta.toFixed(2);
+  document.getElementById('voteV').textContent=Math.round(vote*100)+'%';
+  document.getElementById('rhoI').innerHTML=rhoInterp();
+  document.getElementById('betaI').innerHTML=betaInterp();
+
+  // symmetry stat
+  const tieB=logistic(beta), gap=(tieB-logistic(-beta))*100;
+  const symBig=document.getElementById('symBig');
+  const fair=Math.abs(beta)<0.06;
+  symBig.textContent=fair?'Symmetric':((beta>0?'+':'\u2212')+Math.abs(gap).toFixed(0)+' pts to '+(beta>0?'Blue':'Red'));
+  symBig.style.color=fair?'var(--good)':(beta>0?'var(--B)':'var(--R)');
+  document.getElementById('symNote').innerHTML=fair
+    ? 'At a 50/50 vote each party takes exactly half the seats.'
+    : `At a 50/50 vote, ${beta>0?'Blue':'Red'} already holds ${Math.round(beta>0?tieB*100:(1-tieB)*100)}% of seats.`;
+  const tg=document.getElementById('symTag');
+  tg.className='tag '+(fair?'ok':'no'); tg.textContent=fair?'CURVES COINCIDE':'CURVES SPLIT';
+
+  // marker stat
+  const sb=sBlue(vote), bonus=(sb-vote)*100;
+  document.getElementById('mkBig').innerHTML=`Blue ${Math.round(vote*100)}% votes \u2192 <span style="color:var(--B)">${Math.round(sb*100)}% seats</span>`;
+  document.getElementById('mkNote').innerHTML=`Seat bonus <b style="color:${bonus>=0?'var(--good)':'var(--bad)'}">${bonus>=0?'+':''}${bonus.toFixed(0)} pts</b> vs proportional. Red gets the remaining ${Math.round((1-sb)*100)}% of seats on ${Math.round((1-vote)*100)}% of votes.`;
+}
+
+// controls
+document.getElementById('rho').addEventListener('input',e=>{rho=+e.target.value/100;render();});
+document.getElementById('beta').addEventListener('input',e=>{beta=+e.target.value/100;render();});
+document.getElementById('vote').addEventListener('input',e=>{vote=+e.target.value/100;render();});
+// click chart to set marker
+document.getElementById('chart').addEventListener('click',e=>{
+  const r=e.currentTarget.getBoundingClientRect();
+  const px=(e.clientX-r.left)/r.width*W;
+  let v=(px-L)/pw; v=Math.max(0.05,Math.min(0.95,v));
+  vote=v; document.getElementById('vote').value=Math.round(v*100); render();
+});
+const pe=document.getElementById('presets');
+pe.innerHTML=PRESETS.map((p,i)=>`<button data-i="${i}">${p.nm}</button>`).join('');
+pe.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  const p=PRESETS[+b.dataset.i]; rho=p.rho; beta=p.beta;
+  document.getElementById('rho').value=rho*100; document.getElementById('beta').value=beta*100; render();
+});
+render();
+</script>
+</body>
+</html>

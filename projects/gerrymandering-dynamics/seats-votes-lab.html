@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seats–Votes Lab · N parties + bias</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14161b;--panel:#1b1e25;--panel2:#21252e;--line:#2c313c;
+    --ink:#e9e7e1;--muted:#9aa0ab;--faint:#646b78;
+    --good:#6bbf8a;--warn:#e0c060;--bad:#d96f6f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background-image:radial-gradient(circle at 14% -8%,rgba(155,122,214,.06),transparent 44%),radial-gradient(circle at 88% 0%,rgba(91,139,214,.05),transparent 40%)}
+  .wrap{max-width:1020px;margin:0 auto;padding:32px 20px 70px}
+  header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:20px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#9b7ad6;margin-bottom:10px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(26px,5.2vw,42px);line-height:1.03;letter-spacing:-.01em}
+  .sub{margin-top:11px;color:var(--muted);font-size:14px;max-width:70ch;line-height:1.55}
+  .sub b{color:var(--ink);font-weight:600}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start;margin-top:18px}
+  @media(max-width:780px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  svg.chart{width:100%;height:auto;display:block}
+
+  .ctrl{margin-bottom:14px}
+  .ctrl .lab{display:flex;justify-content:space-between;align-items:baseline;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+  .ctrl .lab b{color:var(--ink);font-size:15px;font-weight:600}
+  input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--ink);cursor:pointer;border:3px solid var(--bg);box-shadow:0 1px 5px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--ink);cursor:pointer;border:3px solid var(--bg)}
+  .interp{font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.4}
+  .interp b{color:var(--ink)}
+
+  .pcard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-bottom:8px}
+  .phead{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .phead .sw{width:12px;height:12px;border-radius:3px;flex:none}
+  .phead .pn{font-size:13px;font-weight:600;flex:1}
+  .phead .rd{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted)}
+  .phead .rd b{color:var(--ink)}
+  .phead .del{background:none;border:none;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;padding:0 2px}
+  .phead .del:hover{color:var(--bad)} .phead .del:disabled{opacity:.25;cursor:default}
+  .mini{display:grid;grid-template-columns:30px 1fr 44px;align-items:center;gap:7px;margin-top:5px}
+  .mini .ml{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--faint);text-transform:uppercase}
+  .mini .mv{font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:right;color:var(--muted)}
+  .mini .mv.biased{color:var(--warn)}
+  .add{width:100%;background:none;border:1px dashed var(--line);color:var(--muted);padding:9px;border-radius:10px;cursor:pointer;font-family:'Archivo';font-size:12.5px;margin-top:2px}
+  .add:hover{border-color:#3c4350;color:var(--ink)} .add:disabled{opacity:.3;cursor:default}
+
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:13px;margin-top:11px}
+  .stat .t{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .stat .big{font-family:'Fraunces',serif;font-weight:600;font-size:21px;line-height:1.05}
+  .stat .note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .enp{display:flex;align-items:baseline;gap:7px}.enp .arrow{color:var(--faint)}
+
+  .foot{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px;line-height:1.6;max-width:82ch}
+  .foot b{color:var(--muted)} .foot em{color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><a href="index.html" style="color:#e0903f;text-decoration:none;font-weight:600">Gerrymandering Dynamics</a><span style="color:#3a4150;margin:0 4px">&#8212;</span><a href="gerrymander-symmetry.html" style="color:#9aa0ab;text-decoration:none">Symmetry Test</a> <span style="color:#3a4150">&#183;</span> <a href="districting-lab.html" style="color:#9aa0ab;text-decoration:none">Districting Lab</a> <span style="color:#3a4150">&#183;</span> <a href="seats-votes-curve.html" style="color:#9aa0ab;text-decoration:none">Seats-Votes Curve</a> <span style="color:#3a4150">&#183;</span> <span style="color:#e9e7e1;font-weight:600">Seats-Votes Lab</span></nav>
+<div class="wrap">
+  <header>
+    <div class="kicker">Multiparty seats–votes · responsiveness + bias</div>
+    <h1>Add a thumb to the scale.</h1>
+    <p class="sub">Each party's own vote on x, own seat share on y. <b>ρ</b> sets the system's responsiveness; each party's <b>bias ×</b> multiplier is the gerrymander term — lift it and that party's solid curve rises off its faint <b>neutral ghost</b>, while everyone else sinks. Add or remove parties to see how the structural fan reshapes. With N parties there are N−1 independent bias directions — only the ratios between the multipliers matter.</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <svg class="chart" id="chart" viewBox="0 0 470 430"></svg>
+    </div>
+    <div>
+      <div class="ctrl">
+        <div class="lab"><span>RESPONSIVENESS  ρ</span><b id="rhoV">3.0</b></div>
+        <input type="range" id="rho" min="50" max="800" value="300">
+        <div class="interp" id="rhoI"></div>
+      </div>
+      <div id="parties"></div>
+      <button class="add" id="add">+ add party</button>
+
+      <div class="stat">
+        <div class="t">Disproportionality (Gallagher)</div>
+        <div class="big" id="galV"></div>
+        <div class="note" id="galN"></div>
+      </div>
+      <div class="stat">
+        <div class="t">Bias state</div>
+        <div class="big" id="biasV" style="font-size:17px"></div>
+        <div class="note" id="biasN"></div>
+      </div>
+      <div class="stat">
+        <div class="t">Effective number of parties</div>
+        <div class="big enp"><span id="enpVote"></span><span class="arrow">→</span><span id="enpSeat"></span></div>
+        <div class="note">votes → seats</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>Reading bias vs structure:</b> with every multiplier at ×1 the curves still fan apart — that's the neutral structural effect (who each party runs against), not rigging. Push a party's bias above ×1 and its solid curve lifts clear of its dashed ghost: the lines now convert that party's votes into seats better than an identically-placed rival's, which is exactly what a gerrymander does. The Gallagher number blends both sources; the gap between a curve and its ghost isolates the bias alone. Disproportionality (distance from the diagonal) and responsiveness (shared ρ) are properties of the whole system; bias is the part that singles out a party.
+  </div>
+</div>
+
+<script>
+const PALETTE=['#5b8bd6','#d2605f','#5fae72','#e0973f','#9b7ad6','#4bb0bb','#d68fb0','#b0a24b'];
+const NAMES=['Blue','Red','Green','Orange','Purple','Teal','Pink','Olive'];
+let parties=[
+  {name:'Blue',col:PALETTE[0],vote:38,lam:1},
+  {name:'Red',col:PALETTE[1],vote:30,lam:1},
+  {name:'Green',col:PALETTE[2],vote:20,lam:1},
+  {name:'Orange',col:PALETTE[3],vote:12,lam:1}
+];
+let rho=3.0;
+const MINP=2, MAXP=8;
+
+function fracs(){const s=parties.map(p=>Math.max(0.003,p.vote/100));const t=s.reduce((a,b)=>a+b,0);return s.map(x=>x/t);}
+function seatShares(w,useLam){const p=w.map((v,i)=>(useLam?parties[i].lam:1)*Math.pow(v,rho));const t=p.reduce((a,b)=>a+b,0);return p.map(x=>x/t);}
+// party i curve: y(x)=x^r/(x^r+K(1-x)^r), K=(Σ_{j!=i} lam_j (w_j/(1-w_i))^r)/lam_i
+function Kof(w,i,useLam){let num=0;const denom=Math.pow(1-w[i],rho);for(let j=0;j<w.length;j++)if(j!==i){const lj=useLam?parties[j].lam:1;num+=lj*Math.pow(w[j],rho);}num/=denom;return num/(useLam?parties[i].lam:1);}
+function curveY(x,K){const a=Math.pow(x,rho),b=K*Math.pow(1-x,rho);return a/(a+b);}
+
+const W=470,H=430,L=50,Rm=16,T=16,Bm=46, pw=W-L-Rm, ph=H-T-Bm;
+const X=v=>L+v*pw, Y=s=>T+(1-s)*ph;
+
+function draw(){
+  const w=fracs(), s=seatShares(w,true), sN=seatShares(w,false);
+  let g='';
+  for(let i=0;i<=4;i++){const t=i/4;
+    g+=`<line x1="${X(t)}" y1="${T}" x2="${X(t)}" y2="${T+ph}" stroke="#23282f" stroke-width="1"/>`;
+    g+=`<line x1="${L}" y1="${Y(t)}" x2="${L+pw}" y2="${Y(t)}" stroke="#23282f" stroke-width="1"/>`;
+    g+=`<text x="${X(t)}" y="${T+ph+16}" fill="#646b78" font-size="10" font-family="IBM Plex Mono" text-anchor="middle">${t*100|0}</text>`;
+    g+=`<text x="${L-7}" y="${Y(t)+3.5}" fill="#646b78" font-size="10" font-family="IBM Plex Mono" text-anchor="end">${t*100|0}</text>`;
+  }
+  g+=`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="#646b78" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  g+=`<text x="${X(.84)}" y="${Y(.9)}" fill="#646b78" font-size="9.5" font-family="IBM Plex Mono" transform="rotate(-32 ${X(.84)} ${Y(.9)})">proportional</text>`;
+  const cpath=(K)=>{let d='';for(let k=0;k<=120;k++){const x=0.01+k/120*0.98;d+=(k?'L':'M')+`${X(x).toFixed(1)} ${Y(curveY(x,K)).toFixed(1)}`;}return d;};
+  // ghosts for biased parties
+  for(let i=0;i<parties.length;i++){
+    if(Math.abs(parties[i].lam-1)>0.02){
+      g+=`<path d="${cpath(Kof(w,i,false))}" fill="none" stroke="${parties[i].col}" stroke-width="1.6" stroke-dasharray="3 4" opacity=".4"/>`;
+      g+=`<circle cx="${X(w[i])}" cy="${Y(sN[i])}" r="3.4" fill="none" stroke="${parties[i].col}" stroke-width="1.4" opacity=".5"/>`;
+    }
+  }
+  // solid biased curves
+  for(let i=0;i<parties.length;i++)
+    g+=`<path d="${cpath(Kof(w,i,true))}" fill="none" stroke="${parties[i].col}" stroke-width="2.3" stroke-linejoin="round" opacity=".92"/>`;
+  // markers
+  for(let i=0;i<parties.length;i++){
+    g+=`<circle cx="${X(w[i])}" cy="${Y(s[i])}" r="5.2" fill="${parties[i].col}" stroke="#14161b" stroke-width="2"/>`;
+    g+=`<text x="${X(w[i])+9}" y="${Y(s[i])+3.5}" fill="${parties[i].col}" font-size="10" font-weight="600" font-family="IBM Plex Mono">${parties[i].name[0]}</text>`;
+  }
+  g+=`<text x="${L+pw/2}" y="${H-6}" fill="#9aa0ab" font-size="11" font-family="IBM Plex Mono" text-anchor="middle">own VOTE share (%) →</text>`;
+  g+=`<text x="13" y="${T+ph/2}" fill="#9aa0ab" font-size="11" font-family="IBM Plex Mono" text-anchor="middle" transform="rotate(-90 13 ${T+ph/2})">own SEAT share (%) →</text>`;
+  document.getElementById('chart').innerHTML=g;
+}
+
+function rhoInterp(){
+  if(rho<=1.05)return '<b>≈ proportional</b>: curves collapse onto the diagonal.';
+  if(rho<2)return '<b>Mildly majoritarian</b>: small bonus to leaders.';
+  if(rho<4)return '<b>Cube-law range</b> — typical of real single-member systems.';
+  return '<b>Strongly majoritarian</b>: the leader hoovers up seats.';
+}
+const lamToSlider=l=>Math.round(Math.log(l)/Math.log(4)*100);
+const sliderToLam=v=>Math.exp(v/100*Math.log(4));
+
+function buildControls(){
+  document.getElementById('parties').innerHTML=parties.map((p,i)=>
+    `<div class="pcard">
+       <div class="phead">
+         <span class="sw" style="background:${p.col}"></span>
+         <span class="pn" style="color:${p.col}">${p.name}</span>
+         <span class="rd" id="rd${i}"></span>
+         <button class="del" data-i="${i}" ${parties.length<=MINP?'disabled':''} title="remove">×</button>
+       </div>
+       <div class="mini"><span class="ml">vote</span><input type="range" min="0" max="80" id="v${i}" style="accent-color:${p.col}"><span class="mv" id="vt${i}"></span></div>
+       <div class="mini"><span class="ml">bias</span><input type="range" min="-100" max="100" id="b${i}" style="accent-color:${p.col}"><span class="mv" id="bt${i}"></span></div>
+     </div>`).join('');
+  parties.forEach((p,i)=>{
+    document.getElementById('v'+i).addEventListener('input',e=>onVote(i,+e.target.value));
+    const b=document.getElementById('b'+i); b.value=lamToSlider(p.lam);
+    b.addEventListener('input',e=>{parties[i].lam=sliderToLam(+e.target.value);refresh();});
+  });
+  document.querySelectorAll('.del').forEach(d=>d.onclick=()=>delParty(+d.dataset.i));
+  document.getElementById('add').disabled=parties.length>=MAXP;
+}
+function onVote(i,val){
+  val=Math.max(0,Math.min(100,val));
+  const restOld=parties.reduce((a,p,j)=>j===i?a:a+p.vote,0);
+  parties[i].vote=val; const restNew=100-val;
+  if(restOld>1e-9)parties.forEach((p,j)=>{if(j!==i)p.vote=p.vote/restOld*restNew;});
+  else parties.forEach((p,j)=>{if(j!==i)p.vote=restNew/(parties.length-1);});
+  refresh();
+}
+function addParty(){
+  if(parties.length>=MAXP)return;
+  const used=parties.map(p=>p.name);
+  let idx=0; while(used.includes(NAMES[idx]))idx++;
+  const nv=8; parties.forEach(p=>p.vote*=(100-nv)/100);
+  parties.push({name:NAMES[idx],col:PALETTE[idx],vote:nv,lam:1});
+  buildControls(); refresh();
+}
+function delParty(i){
+  if(parties.length<=MINP)return;
+  const freed=parties[i].vote; parties.splice(i,1);
+  const rest=parties.reduce((a,p)=>a+p.vote,0);
+  if(rest>1e-9)parties.forEach(p=>p.vote*=100/rest);
+  buildControls(); refresh();
+}
+
+function refresh(){
+  const w=fracs(), s=seatShares(w,true);
+  draw();
+  document.getElementById('rhoV').textContent=rho.toFixed(rho<1.05?2:1);
+  document.getElementById('rhoI').innerHTML=rhoInterp();
+  parties.forEach((p,i)=>{
+    const ve=document.getElementById('v'+i); if(ve)ve.value=Math.round(p.vote);
+    const vt=document.getElementById('vt'+i); if(vt)vt.innerHTML=`${Math.round(w[i]*100)}%`;
+    const bt=document.getElementById('bt'+i); if(bt){const biased=Math.abs(p.lam-1)>0.02;bt.textContent='×'+p.lam.toFixed(2);bt.className='mv'+(biased?' biased':'');}
+    const rd=document.getElementById('rd'+i); if(rd)rd.innerHTML=`<b>${Math.round(s[i]*100)}</b> seat%`;
+  });
+  // Gallagher
+  let q=0;for(let i=0;i<w.length;i++)q+=(w[i]*100-s[i]*100)**2;
+  const G=Math.sqrt(q/2), gv=document.getElementById('galV');
+  gv.textContent=G.toFixed(1); gv.style.color=G<5?'var(--good)':(G<12?'var(--warn)':'var(--bad)');
+  let maxi=0;for(let i=1;i<w.length;i++)if(w[i]>w[maxi])maxi=i;
+  document.getElementById('galN').innerHTML=`${parties[maxi].name}: ${Math.round(w[maxi]*100)}% votes → ${Math.round(s[maxi]*100)}% seats.`;
+  // bias state
+  const boosted=parties.filter(p=>p.lam>1.05).map(p=>p.name);
+  const supp=parties.filter(p=>p.lam<0.95).map(p=>p.name);
+  const bv=document.getElementById('biasV'), bn=document.getElementById('biasN');
+  if(!boosted.length&&!supp.length){bv.textContent='Neutral';bv.style.color='var(--good)';bn.textContent='All ×1 — only the structural fan remains.';}
+  else{bv.textContent='Rigged';bv.style.color='var(--bad)';bn.innerHTML=(boosted.length?`Boosting <b style="color:var(--ink)">${boosted.join(', ')}</b>. `:'')+(supp.length?`Suppressing ${supp.join(', ')}.`:'');}
+  // ENP
+  const enpV=1/w.reduce((a,x)=>a+x*x,0), enpS=1/s.reduce((a,x)=>a+x*x,0);
+  document.getElementById('enpVote').textContent=enpV.toFixed(2);
+  document.getElementById('enpSeat').textContent=enpS.toFixed(2);
+  document.getElementById('enpSeat').style.color=enpS<enpV-0.3?'var(--warn)':'var(--ink)';
+}
+
+document.getElementById('rho').addEventListener('input',e=>{rho=+e.target.value/100;refresh();});
+document.getElementById('add').onclick=addParty;
+buildControls(); refresh();
+</script>
+</body>
+</html>
