@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSVP Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2a2a2a;
+    --text: #e8e4df;
+    --muted: #666;
+    --accent: #e85d3a;
+    --accent-dim: rgba(232, 93, 58, 0.15);
+    --guide: rgba(232, 93, 58, 0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; opacity: 0.03;
+    background-image: radial-gradient(circle at 25% 25%, var(--accent) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .header {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 8px;
+    opacity: 0.5;
+    margin-bottom: 20px;
+  }
+  .header-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .header-dot { font-size: 9px; color: var(--muted); }
+  .header-sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0 4px 8px;
+  }
+  .wpm-display { display: flex; align-items: baseline; gap: 6px; }
+  .wpm-number {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: 'EB Garamond', serif;
+  }
+  .wpm-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .stats { display: flex; gap: 16px; }
+  .stat { font-size: 11px; color: var(--muted); }
+
+  .word-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    height: 120px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.3);
+    transition: box-shadow 0.3s ease;
+  }
+  .word-frame.playing {
+    box-shadow: 0 0 30px rgba(232, 93, 58, 0.06), inset 0 0 60px rgba(0,0,0,0.3);
+  }
+
+  .word-area {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .guide-line {
+    position: absolute;
+    left: 50%; top: 0; bottom: 0;
+    width: 1px;
+    background: var(--guide);
+  }
+  .notch {
+    position: absolute;
+    left: 50%;
+    width: 8px; height: 3px;
+    margin-left: -4px;
+    background: var(--accent);
+  }
+  .notch-top { top: 0; border-radius: 0 0 2px 2px; }
+  .notch-bot { bottom: 0; border-radius: 2px 2px 0 0; }
+
+  .word-container {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    line-height: 1;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    font-weight: 500;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+  .word-container .pivot { color: var(--accent); font-weight: 700; }
+  .word-container .normal { color: var(--text); }
+
+  .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-family: 'EB Garamond', Georgia, serif;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .progress-track {
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 0 0 2px 2px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 16px;
+  }
+  .ctrl-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 8px 14px;
+    font-size: 18px;
+    font-family: inherit;
+    transition: color 0.15s;
+  }
+  .ctrl-btn:hover { color: var(--text); }
+  .ctrl-btn.wpm-adj { font-size: 14px; }
+
+  .play-btn {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 8px;
+    transition: all 0.2s ease;
+  }
+  .play-btn.playing {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(232, 93, 58, 0.3);
+  }
+
+  .secondary-controls {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 12px;
+  }
+  .sec-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .sec-btn.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .slider-area { margin-top: 16px; padding: 0 4px; }
+  .slider-area input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .slider-area input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(232, 93, 58, 0.4);
+  }
+  .slider-area input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(232, 93, 58, 0.4);
+  }
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .panel {
+    margin-top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    animation: fadeIn 0.15s ease;
+    display: none;
+  }
+  .panel.open { display: block; }
+
+  .panel textarea {
+    width: 100%;
+    height: 160px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    padding: 12px;
+    resize: vertical;
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 15px;
+    line-height: 1.6;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .panel textarea:focus { border-color: var(--accent); }
+
+  .panel-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .btn-load {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 6px 20px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 600;
+  }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .setting-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .setting-btns { display: flex; gap: 4px; }
+  .setting-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .setting-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .toggle-row {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .toggle-track {
+    width: 36px; height: 20px;
+    border-radius: 10px;
+    position: relative;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .toggle-track.off { background: var(--surface2); border: 1px solid var(--border); }
+  .toggle-track.on { background: var(--accent); border: 1px solid var(--accent); }
+  .toggle-knob {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    transition: left 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle-track.off .toggle-knob { left: 2px; }
+  .toggle-track.on .toggle-knob { left: 19px; }
+
+  .btn-close-settings {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    margin-top: 16px;
+  }
+
+  .hints {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 2;
+    letter-spacing: 0.02em;
+    opacity: 0.6;
+  }
+  .hints .key { color: var(--text); opacity: 0.5; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">RSVP Reader</span></nav>
+
+<div class="container">
+  <div class="header">
+    <span class="header-title">RSVP</span>
+    <span class="header-dot">•</span>
+    <span class="header-sub">RAPID SERIAL VISUAL PRESENTATION</span>
+  </div>
+
+  <div class="status-bar">
+    <div class="wpm-display">
+      <span class="wpm-number" id="wpmDisplay">300</span>
+      <span class="wpm-label">wpm</span>
+    </div>
+    <div class="stats">
+      <span class="stat" id="wordProgress">0/0</span>
+      <span class="stat" id="timeRemaining">0s left</span>
+    </div>
+  </div>
+
+  <div class="word-frame" id="wordFrame">
+    <div class="word-area">
+      <div class="guide-line"></div>
+      <div class="notch notch-top"></div>
+      <div class="notch notch-bot"></div>
+      <div id="wordSlot">
+        <div class="placeholder" style="font-size:17px;">▸ press space or click play</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-track" id="progressTrack">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btnSkipBack" title="Skip back (←)">⏮</button>
+    <button class="ctrl-btn" id="btnRestart" title="Restart (R)">↺</button>
+    <button class="play-btn" id="btnPlay" title="Play/Pause (Space)">▶</button>
+    <button class="ctrl-btn wpm-adj" id="btnSlower" title="Slower (↓)">−25</button>
+    <button class="ctrl-btn wpm-adj" id="btnFaster" title="Faster (↑)">+25</button>
+    <button class="ctrl-btn" id="btnSkipFwd" title="Skip forward (→)">⏭</button>
+  </div>
+
+  <div class="secondary-controls">
+    <button class="sec-btn" id="btnText">TEXT</button>
+    <button class="sec-btn" id="btnSettings">SETTINGS</button>
+  </div>
+
+  <div class="slider-area">
+    <input type="range" id="wpmSlider" min="50" max="1500" step="25" value="300">
+    <div class="slider-labels">
+      <span>50</span>
+      <span>WORDS PER MINUTE</span>
+      <span>1500</span>
+    </div>
+  </div>
+
+  <div class="panel" id="textPanel">
+    <textarea id="textInput" placeholder="Paste your text here..."></textarea>
+    <div class="panel-actions">
+      <button class="btn-cancel" id="btnTextCancel">CANCEL</button>
+      <button class="btn-load" id="btnTextLoad">LOAD</button>
+    </div>
+  </div>
+
+  <div class="panel" id="settingsPanel">
+    <div class="settings-grid">
+      <div>
+        <div class="setting-label">CHUNK SIZE</div>
+        <div class="setting-btns">
+          <button class="setting-btn active" data-chunk="1">1</button>
+          <button class="setting-btn" data-chunk="2">2</button>
+          <button class="setting-btn" data-chunk="3">3</button>
+        </div>
+      </div>
+      <div>
+        <div class="setting-label">FONT SIZE</div>
+        <div class="setting-btns">
+          <button class="setting-btn" data-fsize="30">S</button>
+          <button class="setting-btn active" data-fsize="42">M</button>
+          <button class="setting-btn" data-fsize="56">L</button>
+        </div>
+      </div>
+      <div class="toggle-row" id="togglePause">
+        <div class="toggle-track on" id="pauseToggle">
+          <div class="toggle-knob"></div>
+        </div>
+        <span>Pause at sentence boundaries</span>
+      </div>
+    </div>
+    <button class="btn-close-settings" id="btnSettingsClose">CLOSE</button>
+  </div>
+
+  <div class="hints">
+    <span class="key">space</span> play/pause
+    &nbsp;&nbsp;
+    <span class="key">← →</span> skip
+    &nbsp;&nbsp;
+    <span class="key">↑ ↓</span> speed
+    &nbsp;&nbsp;
+    <span class="key">R</span> restart
+    &nbsp;&nbsp;
+    <span class="key">N</span> new text
+    &nbsp;&nbsp;
+    <span class="key">S</span> settings
+  </div>
+</div>
+
+<script>
+(() => {
+  const SAMPLE_TEXT = `Hello and welcome to the RSVP Reader. To get started, click the TEXT button below and paste any text you would like to speed read. This tool uses Rapid Serial Visual Presentation to help you read faster by displaying words one at a time at a fixed focal point. Your eyes stay still while the words come to you, eliminating the saccadic eye movements that slow down traditional reading. Use the controls to adjust your reading speed in words per minute. The highlighted letter in each word marks the Optimal Recognition Point, the position where your brain most efficiently processes the word. Try starting at 300 words per minute and gradually increasing as you get comfortable. You can pause at any time with the spacebar and use the arrow keys to skip forward or back. Happy reading.`;
+
+  function getORP(word) {
+    const clean = word.replace(/[^a-zA-Z0-9\u00C0-\u024F]/g, "");
+    const len = clean.length;
+    if (len <= 1) return 0;
+    if (len <= 5) return 1;
+    if (len <= 9) return 2;
+    if (len <= 13) return 3;
+    return 4;
+  }
+
+  function findORPInOriginal(word) {
+    const idx = getORP(word);
+    let alphaCount = 0;
+    for (let i = 0; i < word.length; i++) {
+      if (/[a-zA-Z0-9\u00C0-\u024F]/.test(word[i])) {
+        if (alphaCount === idx) return i;
+        alphaCount++;
+      }
+    }
+    return Math.min(idx, word.length - 1);
+  }
+
+  let words = [];
+  let index = 0;
+  let playing = false;
+  let hasStarted = false;
+  let wpm = 300;
+  let chunkSize = 1;
+  let fontSize = 42;
+  let sentencePause = true;
+  let timer = null;
+
+  const $ = (s) => document.querySelector(s);
+  const wordSlot = $("#wordSlot");
+  const wpmDisplay = $("#wpmDisplay");
+  const wordProgress = $("#wordProgress");
+  const timeRemaining = $("#timeRemaining");
+  const progressFill = $("#progressFill");
+  const wordFrame = $("#wordFrame");
+  const wpmSlider = $("#wpmSlider");
+  const textPanel = $("#textPanel");
+  const settingsPanel = $("#settingsPanel");
+  const textInput = $("#textInput");
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function renderWord() {
+    if (!hasStarted || words.length === 0) {
+      wordSlot.innerHTML = `<div class="placeholder" style="font-size:${fontSize * 0.4}px;">▸ press space</div>`;
+      return;
+    }
+    const chunk = words.slice(index, index + chunkSize).join(" ");
+    if (!chunk) return;
+    const orpIdx = findORPInOriginal(chunk);
+    const before = chunk.slice(0, orpIdx);
+    const pivot = chunk[orpIdx] || "";
+    const after = chunk.slice(orpIdx + 1);
+    const shiftCh = orpIdx + 0.5;
+
+    // Auto-shrink the font so the chunk never bleeds past either edge.
+    // The word is centred on the pivot, so the binding constraint is the
+    // longer of the two sides measured from the pivot centre.
+    const charsLeft = orpIdx + 0.5;
+    const charsRight = chunk.length - orpIdx - 0.5;
+    const maxCharsPerSide = Math.max(charsLeft, charsRight);
+    const areaWidth = wordSlot.parentElement.clientWidth || 600;
+    const halfWidth = areaWidth / 2 - 20; // breathing room from the edge
+    const charWidthRatio = 0.6; // JetBrains Mono glyph advance ≈ 0.6em
+    const maxFont = halfWidth / (maxCharsPerSide * charWidthRatio);
+    const effectiveFont = Math.max(16, Math.min(fontSize, maxFont));
+
+    wordSlot.innerHTML = `<div class="word-container" style="font-size:${effectiveFont}px; transform:translate(calc(-${shiftCh}ch), -50%);">` +
+      `<span class="normal">${escapeHtml(before)}</span>` +
+      `<span class="pivot">${escapeHtml(pivot)}</span>` +
+      `<span class="normal">${escapeHtml(after)}</span>` +
+      `</div>`;
+  }
+
+  function updateUI() {
+    wpmDisplay.textContent = wpm;
+    wordProgress.textContent = `${words.length > 0 ? index + 1 : 0}/${words.length}`;
+    const secsLeft = words.length > 0 ? Math.ceil(((words.length - index) / wpm) * 60) : 0;
+    const m = Math.floor(secsLeft / 60);
+    timeRemaining.textContent = m > 0 ? `${m}m ${secsLeft % 60}s left` : `${secsLeft}s left`;
+    const pct = words.length > 0 ? ((index + 1) / words.length) * 100 : 0;
+    progressFill.style.transition = playing ? "none" : "width 0.15s ease";
+    progressFill.style.width = pct + "%";
+    wpmSlider.value = wpm;
+    wpmSlider.style.background = `linear-gradient(to right, var(--accent) ${((wpm - 50) / 1450) * 100}%, var(--surface2) ${((wpm - 50) / 1450) * 100}%)`;
+    const playBtn = $("#btnPlay");
+    if (playing) {
+      playBtn.textContent = "⏸";
+      playBtn.classList.add("playing");
+      wordFrame.classList.add("playing");
+    } else {
+      playBtn.textContent = "▶";
+      playBtn.classList.remove("playing");
+      wordFrame.classList.remove("playing");
+    }
+  }
+
+  function getDelay() {
+    const base = (60 / wpm) * 1000;
+    if (!sentencePause) return base;
+    const w = words[index] || "";
+    if (/[.!?]$/.test(w)) return base * 2.2;
+    if (/[,;:]$/.test(w)) return base * 1.4;
+    if (w.length > 10) return base * 1.15;
+    return base;
+  }
+
+  function tick() {
+    if (!playing) return;
+    const nextIdx = index + chunkSize;
+    if (nextIdx >= words.length) {
+      playing = false;
+      index = words.length - 1;
+      renderWord();
+      updateUI();
+      return;
+    }
+    index = nextIdx;
+    renderWord();
+    updateUI();
+    timer = setTimeout(tick, getDelay());
+  }
+
+  function play() {
+    if (words.length === 0) return;
+    if (index >= words.length - 1 && !playing) index = 0;
+    playing = true;
+    hasStarted = true;
+    renderWord();
+    updateUI();
+    timer = setTimeout(tick, getDelay());
+  }
+
+  function pause() {
+    playing = false;
+    clearTimeout(timer);
+    updateUI();
+  }
+
+  function togglePlay() { if (playing) pause(); else play(); }
+
+  function restart() {
+    pause();
+    index = 0;
+    hasStarted = false;
+    renderWord();
+    updateUI();
+  }
+
+  function skip(dir) {
+    const step = dir * Math.max(5, chunkSize);
+    index = Math.max(0, Math.min(words.length - 1, index + step));
+    renderWord();
+    updateUI();
+  }
+
+  function setWpm(v) {
+    wpm = Math.max(50, Math.min(1500, v));
+    updateUI();
+  }
+
+  function loadText(t) {
+    words = t.trim().split(/\s+/).filter(Boolean);
+    index = 0;
+    hasStarted = false;
+    playing = false;
+    clearTimeout(timer);
+    textInput.value = t;
+    renderWord();
+    updateUI();
+  }
+
+  $("#btnPlay").addEventListener("click", togglePlay);
+  $("#btnRestart").addEventListener("click", restart);
+  $("#btnSkipBack").addEventListener("click", () => skip(-1));
+  $("#btnSkipFwd").addEventListener("click", () => skip(1));
+  $("#btnSlower").addEventListener("click", () => setWpm(wpm - 25));
+  $("#btnFaster").addEventListener("click", () => setWpm(wpm + 25));
+  wpmSlider.addEventListener("input", (e) => setWpm(Number(e.target.value)));
+
+  $("#progressTrack").addEventListener("click", (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    index = Math.max(0, Math.min(words.length - 1, Math.floor(pct * words.length)));
+    renderWord();
+    updateUI();
+  });
+
+  function updateSecButtons() {
+    $("#btnText").classList.toggle("active", textPanel.classList.contains("open"));
+    $("#btnSettings").classList.toggle("active", settingsPanel.classList.contains("open"));
+  }
+
+  $("#btnText").addEventListener("click", () => {
+    textPanel.classList.toggle("open");
+    settingsPanel.classList.remove("open");
+    updateSecButtons();
+  });
+  $("#btnTextCancel").addEventListener("click", () => {
+    textPanel.classList.remove("open");
+    updateSecButtons();
+  });
+  $("#btnTextLoad").addEventListener("click", () => {
+    loadText(textInput.value);
+    textPanel.classList.remove("open");
+    updateSecButtons();
+  });
+
+  $("#btnSettings").addEventListener("click", () => {
+    settingsPanel.classList.toggle("open");
+    textPanel.classList.remove("open");
+    updateSecButtons();
+  });
+  $("#btnSettingsClose").addEventListener("click", () => {
+    settingsPanel.classList.remove("open");
+    updateSecButtons();
+  });
+
+  document.querySelectorAll("[data-chunk]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      chunkSize = Number(btn.dataset.chunk);
+      document.querySelectorAll("[data-chunk]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  document.querySelectorAll("[data-fsize]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      fontSize = Number(btn.dataset.fsize);
+      document.querySelectorAll("[data-fsize]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderWord();
+    });
+  });
+
+  $("#togglePause").addEventListener("click", () => {
+    sentencePause = !sentencePause;
+    const track = $("#pauseToggle");
+    track.classList.toggle("on", sentencePause);
+    track.classList.toggle("off", !sentencePause);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "TEXTAREA") return;
+    if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+    if (e.code === "ArrowLeft") { e.preventDefault(); skip(-1); }
+    if (e.code === "ArrowRight") { e.preventDefault(); skip(1); }
+    if (e.code === "ArrowUp") { e.preventDefault(); setWpm(wpm + 25); }
+    if (e.code === "ArrowDown") { e.preventDefault(); setWpm(wpm - 25); }
+    if (e.key === "r" || e.key === "R") restart();
+    if (e.key === "n" || e.key === "N") $("#btnText").click();
+    if (e.key === "s" || e.key === "S") $("#btnSettings").click();
+    if (e.key === "Escape") {
+      textPanel.classList.remove("open");
+      settingsPanel.classList.remove("open");
+      updateSecButtons();
+    }
+  });
+
+  // Init with sample text
+  loadText(SAMPLE_TEXT);
+})();
+</script>
+</body>
+</html>
