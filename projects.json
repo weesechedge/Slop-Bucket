@@ -1,6 +1,15 @@
 {
   "projects": [
     {
+      "slug": "opus-4-8-impression-neural-playground",
+      "title": "Opus 4.8 Impression - Neural Playground",
+      "description": "A small multilayer perceptron trained live in the browser by hand-written backpropagation — watch tangled classes get pulled apart in the network's learned 2-D representation until a single line separates them.",
+      "tags": ["neural-network", "backpropagation", "machine-learning", "representation-learning", "interactive", "visualization", "from-scratch"],
+      "date": "2026-06-08",
+      "path": "projects/opus-4-8-impression-neural-playground/",
+      "pages": []
+    },
+    {
       "slug": "gerrymandering-dynamics",
       "title": "Gerrymandering Dynamics",
       "description": "Four interactive explainers on how district lines and electoral systems turn votes into seats — and why disproportionality is not the same as an unfair (asymmetric) map.",
