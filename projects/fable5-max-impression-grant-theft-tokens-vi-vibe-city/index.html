@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Grand Theft Tokens VI</title>
+<meta name="description" content="A loving AI-joke parody of a certain open-world crime game. Runs entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌴</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- ======== HUD ======== -->
+<div id="hud">
+  <div id="statusBox">
+    <div id="tokens">⛁ 0</div>
+    <div id="stars">☆☆☆☆☆</div>
+  </div>
+  <div id="objWrap">
+    <div id="objective"></div>
+    <div id="timer"></div>
+  </div>
+  <canvas id="minimap"></canvas>
+  <div id="toasts"></div>
+</div>
+
+<div id="hurt"></div>
+<div id="splash"></div>
+
+<!-- ======== dialog letterbox ======== -->
+<div id="dialog">
+  <div class="bar top"></div>
+  <div class="bar bottom">
+    <div id="dlgName"></div>
+    <div id="dlgText"></div>
+    <div id="dlgHint"></div>
+  </div>
+</div>
+
+<!-- ======== help ======== -->
+<div id="helpPanel">
+  <h3>HOW TO COMMIT (VERSION CONTROL) CRIMES</h3>
+  <table>
+    <tr><td>WASD / arrows</td><td>move / drive</td></tr>
+    <tr><td>Shift</td><td>sprint</td></tr>
+    <tr><td>Space</td><td>handbrake</td></tr>
+    <tr><td>E / F</td><td>enter · exit car</td></tr>
+    <tr><td>Left click</td><td>punch (foot) · horn (car)</td></tr>
+    <tr><td>Right drag</td><td>orbit camera</td></tr>
+    <tr><td>Wheel</td><td>zoom</td></tr>
+    <tr><td>R</td><td>radio</td></tr>
+    <tr><td>B</td><td>horn</td></tr>
+    <tr><td>M</td><td>mute</td></tr>
+    <tr><td>P / Esc</td><td>pause</td></tr>
+  </table>
+  <p>Purple marker = missions. Green ring at Mercy General heals (100 ⛁).<br>25 golden Attention Orbs are hidden around Vibe City.</p>
+  <p class="dim">H to close</p>
+</div>
+
+<!-- ======== pause ======== -->
+<div id="pause">
+  <h2>PAUSED</h2>
+  <p id="pauseTip"></p>
+  <p class="dim">P / Esc to resume</p>
+</div>
+
+<!-- ======== credits ======== -->
+<div id="credits"><div id="creditsInner"></div></div>
+
+<!-- ======== title ======== -->
+<div id="title">
+  <div class="t-sky"></div>
+  <div class="t-sun"></div>
+  <div class="t-grid"></div>
+  <div class="t-inner">
+    <div class="t-kicker">VIBE CITY · 2026</div>
+    <h1 class="t-logo">GRAND THEFT<br><span>TOKENS</span></h1>
+    <div class="t-vi">VI</div>
+    <button id="titleStart">ENTER VIBE CITY</button>
+    <div class="t-controls">WASD drive · E enter car · ESC pause · touch supported</div>
+    <div class="t-fine">An original parody made of boxes, math and AI jokes.<br>Not affiliated with any games studio. No tokens were harmed.</div>
+  </div>
+</div>
+
+<!-- ======== touch controls ======== -->
+<div id="touchUI">
+  <div id="stick"><div id="stickKnob"></div></div>
+  <div id="tbtns">
+    <button class="tbtn" id="btnA">E</button>
+    <button class="tbtn" id="btnB">✊</button>
+    <button class="tbtn" id="btnSpr">⇧</button>
+    <button class="tbtn small" id="btnRad">📻</button>
+    <button class="tbtn small" id="btnPause">II</button>
+  </div>
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/city.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/missions.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
