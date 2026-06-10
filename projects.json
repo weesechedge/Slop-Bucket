@@ -7,7 +7,11 @@
       "tags": ["transformer", "attention", "numpy", "from-scratch", "backpropagation", "sorting", "mechanistic-interpretability", "machine-learning", "interactive", "browser"],
       "date": "2026-06-10",
       "path": "projects/fable5-max-impression-sorting-transformer/",
-      "pages": []
+      "pages": [
+        { "title": "Source — sortformer.py", "file": "sortformer.py", "description": "The full pure-NumPy implementation: hand-derived forward/backward passes, gradient check against finite differences, Adam, training loop, and the analysis that exports the figures and embedded weights." },
+        { "title": "Training curves", "file": "training_curves.png", "description": "Live training run: log-scale loss and held-out exact-match accuracy climbing to ~100% as the model learns to sort." },
+        { "title": "Attention map", "file": "attention_argsort.png", "description": "Layer 1 head 1 — the argsort circuit the model discovered: heat shows where it attends while emitting each sorted token, circles mark the ground-truth argsort." }
+      ]
     },
     {
       "slug": "rsvp-reader",

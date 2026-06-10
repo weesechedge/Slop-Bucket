@@ -21,8 +21,8 @@ body{font-family:var(--ui);color:var(--text);line-height:1.55;
     radial-gradient(900px 420px at 80% -10%, rgba(214,69,111,.10), transparent 60%),
     radial-gradient(700px 380px at 0% 0%, rgba(252,165,79,.07), transparent 55%),
     var(--ink0);
-  min-height:100vh;padding:28px 18px 64px}
-.wrap{max-width:660px;margin:0 auto}
+  min-height:100vh;padding:0 0 64px}
+.wrap{max-width:660px;margin:28px auto 0;padding:0 18px}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;
   text-transform:uppercase;color:var(--amber);display:flex;align-items:center;gap:10px}
 .eyebrow::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
@@ -82,7 +82,7 @@ canvas{display:block;width:100%;border-radius:10px}
 </style>
 </head>
 <body>
-<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'Spline Sans Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Fable 5 Max Impression - Sorting Transformer</span></nav>
+<nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'Spline Sans Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><a href="index.html" style="color:#e0903f;text-decoration:none;font-weight:600">Sorting Transformer</a><span style="color:#3a4150;margin:0 4px">&#8212;</span><span style="color:#e9e7e1;font-weight:600">Live model</span> <span style="color:#3a4150">&#183;</span> <a href="sortformer.py" style="color:#9aa0ab;text-decoration:none">Source</a> <span style="color:#3a4150">&#183;</span> <a href="training_curves.png" style="color:#9aa0ab;text-decoration:none">Training curves</a> <span style="color:#3a4150">&#183;</span> <a href="attention_argsort.png" style="color:#9aa0ab;text-decoration:none">Attention map</a></nav>
 <div class="wrap">
   <div class="eyebrow">Live-trained specimen · pure NumPy · one CPU core</div>
   <h1>It was random noise <em>minutes ago.</em></h1>
