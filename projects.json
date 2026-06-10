@@ -1,6 +1,15 @@
 {
   "projects": [
     {
+      "slug": "fable5-max-impression-grant-theft-tokens-vi-vibe-city",
+      "title": "Fable 5 Max Impression - Grant Theft Tokens VI - Vibe City",
+      "description": "A loving, entirely-original parody of a certain open-world crime game — built from boxes, math and AI jokes and rendered live with WebGL. Drive around neon-soaked Vibe City, commit version-control crimes, dodge a five-star wanted system, and hunt 25 hidden golden Attention Orbs. Runs entirely in your browser, nothing uploaded.",
+      "tags": ["webgl", "three-js", "game", "open-world", "driving", "parody", "3d", "interactive", "browser"],
+      "date": "2026-06-10",
+      "path": "projects/fable5-max-impression-grant-theft-tokens-vi-vibe-city/",
+      "pages": []
+    },
+    {
       "slug": "fable5-max-impression-sorting-transformer",
       "title": "Fable 5 Max Impression - Sorting Transformer",
       "description": "A 107,840-parameter decoder-only transformer written from scratch in pure NumPy — hand-derived gradients, gradient-checked, and trained to sort lists of opaque tokens with no built-in notion of order. Its weights are embedded in the page and the forward pass runs live in your browser; watch the attention head light up the argsort circuit it discovered.",
