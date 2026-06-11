@@ -48,11 +48,12 @@ The homepage sorts projects by `date` (newest first) and matches search queries 
 ## Publishing a new project
 
 1. Copy the HTML (and any supporting files) into `projects/<slug>/`. The entry page must be `index.html`.
-2. For a single-page project, add a Slop-Bucket nav strip just inside `<body>` so visitors can get back to the homepage:
+2. Add a Slop-Bucket nav strip just inside `<body>` of **every** page (including single-page projects) so visitors can get back to the homepage. Use `position:fixed` — not `sticky`, which drifts to the centre on pages whose `<body>` is a centered flex container:
    ```html
-   <nav style="position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">My Project</span></nav>
+   <nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">My Project</span></nav>
    ```
+   Multi-page projects extend this strip to cross-link sibling pages — see `.claude/skills/slop-bucket-publish/SKILL.md` for the exact recipe.
 3. Append an entry to the `projects` array in `projects.json` (see the schema above).
 4. Commit and push. The homepage updates automatically.
 
-(In Claude Code, just say "publish this HTML" and the `/publish` workflow does all of this for you.)
+(In Claude Code, just say "publish this HTML" — or run `/slop` / `/slop-bucket-publish` — and the slop-bucket-publish skill does all of this for you.)
