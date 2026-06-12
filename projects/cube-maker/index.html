@@ -317,7 +317,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gifuct-js/2.1.2/gifuct-js.min.js"></script>
 <script>
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
@@ -370,15 +369,136 @@ function loadImage(file) {
   imageEl.src = imageURL;
 }
 
-/* ---------- gif decoding (so export can embed the moving frames) ---------- */
+/* GIF89a interlace pass order → real row indices */
+function deinterlaceRows(h) {
+  const rows = new Array(h);
+  let n = 0;
+  for (const [start, step] of [[0,8],[4,8],[2,4],[1,2]])
+    for (let r = start; r < h; r += step) rows[n++] = r;
+  return rows;
+}
+
+/* GIF-variant LZW decode → array of palette indices (length pixelCount) */
+function lzwDecode(minCodeSize, data, pixelCount) {
+  const out = new Uint8Array(pixelCount);
+  let outPos = 0;
+  const clearCode = 1 << minCodeSize;
+  const eoiCode = clearCode + 1;
+  let codeSize = minCodeSize + 1;
+  let dict;
+  const reset = () => {
+    dict = [];
+    for (let i = 0; i < clearCode; i++) dict.push([i]);
+    dict.push(null); dict.push(null); // clear + eoi placeholders
+    codeSize = minCodeSize + 1;
+  };
+  reset();
+
+  let bitPos = 0;
+  const totalBits = data.length * 8;
+  const readCode = () => {
+    let code = 0;
+    for (let i = 0; i < codeSize; i++) {
+      if (bitPos >= totalBits) return eoiCode;
+      code |= ((data[bitPos >> 3] >> (bitPos & 7)) & 1) << i;
+      bitPos++;
+    }
+    return code;
+  };
+
+  let prev = null;
+  while (outPos < pixelCount) {
+    const code = readCode();
+    if (code === eoiCode) break;
+    if (code === clearCode) { reset(); prev = null; continue; }
+    let entry;
+    if (code < dict.length) entry = dict[code];
+    else if (code === dict.length && prev) entry = prev.concat(prev[0]);
+    else break;
+    if (!entry) break;
+    for (let i = 0; i < entry.length && outPos < pixelCount; i++) out[outPos++] = entry[i];
+    if (prev) {
+      dict.push(prev.concat(entry[0]));
+      if (dict.length === (1 << codeSize) && codeSize < 12) codeSize++;
+    }
+    prev = entry;
+  }
+  return out;
+}
+
+/* Parse a GIF into logical-screen size + per-frame RGBA patches */
+function parseGifFrames(buffer) {
+  const data = new Uint8Array(buffer);
+  if (String.fromCharCode(data[0], data[1], data[2]) !== 'GIF') throw new Error('not a gif');
+  let p = 6;
+  const u16 = () => { const v = data[p] | (data[p+1] << 8); p += 2; return v; };
+  const width = u16(), height = u16();
+  const packed = data[p++]; p += 2; // skip bgColor + aspect
+  let gct = null;
+  if (packed & 0x80) { const n = 2 << (packed & 7); gct = data.subarray(p, p + n*3); p += n*3; }
+
+  const readSubBlocks = () => {
+    const chunks = []; let size, len = 0;
+    while ((size = data[p++]) !== 0) { chunks.push(data.subarray(p, p + size)); p += size; len += size; }
+    const out = new Uint8Array(len); let o = 0;
+    for (const c of chunks) { out.set(c, o); o += c.length; }
+    return out;
+  };
+
+  const frames = [];
+  let gce = null;
+  while (p < data.length) {
+    const block = data[p++];
+    if (block === 0x3B) break;                 // trailer
+    if (block === 0x21) {                       // extension
+      const label = data[p++];
+      if (label === 0xF9) {                     // graphic control
+        p++;                                    // block size (4)
+        const gp = data[p++];
+        const delay = u16() * 10;               // 1/100s → ms
+        const transIndex = data[p++];
+        p++;                                    // terminator
+        gce = { disposal: (gp >> 2) & 7, transFlag: (gp & 1) !== 0, transIndex, delay };
+      } else readSubBlocks();
+    } else if (block === 0x2C) {                // image descriptor
+      const left = u16(), top = u16(), iw = u16(), ih = u16();
+      const ip = data[p++];
+      const interlace = (ip & 0x40) !== 0;
+      let ct = gct;
+      if (ip & 0x80) { const n = 2 << (ip & 7); ct = data.subarray(p, p + n*3); p += n*3; }
+      const minCode = data[p++];
+      const indices = lzwDecode(minCode, readSubBlocks(), iw * ih);
+
+      const patch = new Uint8ClampedArray(iw * ih * 4);
+      const transFlag = gce && gce.transFlag;
+      const transIndex = gce ? gce.transIndex : -1;
+      const rows = interlace ? deinterlaceRows(ih) : null;
+      for (let y = 0; y < ih; y++) {
+        const dstY = interlace ? rows[y] : y;
+        for (let x = 0; x < iw; x++) {
+          const idx = indices[y * iw + x];
+          const di = (dstY * iw + x) * 4;
+          if (transFlag && idx === transIndex) { patch[di+3] = 0; continue; }
+          const ci = idx * 3;
+          patch[di] = ct[ci]; patch[di+1] = ct[ci+1]; patch[di+2] = ct[ci+2]; patch[di+3] = 255;
+        }
+      }
+      frames.push({ dims: { left, top, width: iw, height: ih }, disposalType: gce ? gce.disposal : 0, delay: gce ? gce.delay : 0, patch });
+      gce = null;                               // GCE applies to the next image only
+    } else break;                               // unknown → stop safely
+  }
+  return { width, height, frames };
+}
+
+/* ---------- gif decoding (so export can embed the moving frames) ----------
+   Self-contained GIF87a/89a parser + LZW decoder — no external library, so it
+   works regardless of CDN availability. Produces frames shaped like
+   { dims:{left,top,width,height}, disposalType, delay(ms), patch:RGBA }. */
 async function decodeGif(file) {
-  if (typeof gifuct === 'undefined') { status.textContent = 'ready · gif decoder unavailable, exporting first frame'; return; }
   status.textContent = 'decoding gif frames…';
   try {
     const buf = await file.arrayBuffer();
-    const parsed = gifuct.parseGIF(buf);
-    const frames = gifuct.decompressFrames(parsed, true);
-    const gw = parsed.lsd.width, gh = parsed.lsd.height;
+    const { width: gw, height: gh, frames } = parseGifFrames(buf);
     const built = buildGifFrameCanvases(frames, gw, gh);
     if (built.length > 1) {
       gifFrames = built;
