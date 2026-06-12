@@ -260,8 +260,8 @@
 
   <div class="drop" id="drop">
     <div class="icon">⬡</div>
-    <div class="big">Tap to upload an image</div>
-    <div class="small">or drag &amp; drop · jpg / png</div>
+    <div class="big">Tap to upload an image or gif</div>
+    <div class="small">or drag &amp; drop · jpg / png / gif</div>
     <input type="file" id="file" accept="image/*">
   </div>
 
@@ -309,7 +309,7 @@
 
   <footer>
     runs entirely in your browser · nothing uploaded anywhere<br>
-    webgl render → gif.js encode
+    gif frames decoded → webgl render → gif.js encode
   </footer>
 </div>
 
@@ -317,6 +317,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gifuct-js/2.1.2/gifuct-js.min.js"></script>
 <script>
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
@@ -339,6 +340,11 @@ let imageURL = null;
 let imageEl = null;
 let currentAnim = 'dynamic';
 
+/* animated-gif decode state (populated only when a multi-frame gif is uploaded) */
+let isGif = false;          // true when the upload is an animated (>1 frame) gif
+let gifFrames = null;       // [{ canvas, delay(ms) }] fully-composited frames
+let gifDuration = 0;        // total loop length of the source gif, ms
+
 const animClass = { dynamic: 'spin', slow: 'slowSpin', tumble: 'tumble' };
 
 /* ---------- upload handling ---------- */
@@ -346,16 +352,78 @@ function loadImage(file) {
   if (!file || !file.type.startsWith('image/')) return;
   if (imageURL) URL.revokeObjectURL(imageURL);
   imageURL = URL.createObjectURL(file);
+
+  // reset any previous gif state — a plain image export should stay static
+  isGif = false; gifFrames = null; gifDuration = 0;
+
   imageEl = new Image();
   imageEl.onload = () => {
+    // CSS background animates gifs natively, so the live preview is already correct
     faces.forEach(f => f.style.backgroundImage = `url(${imageURL})`);
     scene.style.display = 'block';
     stage.classList.remove('empty');
     exportBtn.disabled = false;
     result.classList.remove('show');
     status.textContent = 'ready';
+    if (file.type === 'image/gif') decodeGif(file);
   };
   imageEl.src = imageURL;
+}
+
+/* ---------- gif decoding (so export can embed the moving frames) ---------- */
+async function decodeGif(file) {
+  if (typeof gifuct === 'undefined') { status.textContent = 'ready · gif decoder unavailable, exporting first frame'; return; }
+  status.textContent = 'decoding gif frames…';
+  try {
+    const buf = await file.arrayBuffer();
+    const parsed = gifuct.parseGIF(buf);
+    const frames = gifuct.decompressFrames(parsed, true);
+    const gw = parsed.lsd.width, gh = parsed.lsd.height;
+    const built = buildGifFrameCanvases(frames, gw, gh);
+    if (built.length > 1) {
+      gifFrames = built;
+      gifDuration = built.reduce((s, f) => s + f.delay, 0);
+      isGif = true;
+      status.textContent = `ready · gif · ${built.length} frames embedded`;
+    } else {
+      status.textContent = 'ready';
+    }
+  } catch (err) {
+    console.error(err);
+    status.textContent = 'ready · gif decode failed, exporting first frame';
+  }
+}
+
+/* Composite each (possibly partial) gif frame into a full-size canvas,
+   honouring disposal methods so motion renders correctly. */
+function buildGifFrameCanvases(frames, gw, gh) {
+  const out = [];
+  const full = document.createElement('canvas');
+  full.width = gw; full.height = gh;
+  const fctx = full.getContext('2d');
+  const patch = document.createElement('canvas');
+  const pctx = patch.getContext('2d');
+  let saved = null; // snapshot for disposal type 3 (restore to previous)
+
+  for (const frame of frames) {
+    const { dims, disposalType, delay } = frame;
+    if (disposalType === 3) saved = fctx.getImageData(0, 0, gw, gh);
+
+    patch.width = dims.width; patch.height = dims.height;
+    const id = pctx.createImageData(dims.width, dims.height);
+    id.data.set(frame.patch);
+    pctx.putImageData(id, 0, 0);
+    fctx.drawImage(patch, dims.left, dims.top);
+
+    const snap = document.createElement('canvas');
+    snap.width = gw; snap.height = gh;
+    snap.getContext('2d').drawImage(full, 0, 0);
+    out.push({ canvas: snap, delay: delay || 100 });
+
+    if (disposalType === 2) fctx.clearRect(dims.left, dims.top, dims.width, dims.height);
+    else if (disposalType === 3 && saved) fctx.putImageData(saved, 0, 0);
+  }
+  return out;
 }
 
 drop.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
@@ -422,12 +490,41 @@ function initThree() {
   camera.position.z = 4.6;
 }
 
+// A canvas we repaint each frame; the cube texture reads from it so an
+// animated gif can play across the exported frames instead of being frozen.
+let textureCanvas = null, textureCtx = null, cubeTexture = null;
+
+function drawTextureFrame(elapsedMs) {
+  const c = textureCanvas, ctx = textureCtx;
+  ctx.clearRect(0, 0, c.width, c.height);
+  if (isGif && gifFrames) {
+    const tms = gifDuration > 0 ? (elapsedMs % gifDuration) : 0;
+    let acc = 0, idx = gifFrames.length - 1;
+    for (let i = 0; i < gifFrames.length; i++) {
+      acc += gifFrames[i].delay;
+      if (tms < acc) { idx = i; break; }
+    }
+    ctx.drawImage(gifFrames[idx].canvas, 0, 0, c.width, c.height);
+  } else {
+    ctx.drawImage(imageEl, 0, 0, c.width, c.height);
+  }
+  if (cubeTexture) cubeTexture.needsUpdate = true;
+}
+
 function buildMesh() {
   if (mesh) { threeScene.remove(mesh); mesh.geometry.dispose(); }
-  const tex = new THREE.Texture(imageEl);
-  tex.needsUpdate = true;
-  tex.minFilter = THREE.LinearFilter;
-  const mat = new THREE.MeshBasicMaterial({ map: tex });
+
+  if (!textureCanvas) {
+    textureCanvas = document.createElement('canvas');
+    textureCtx = textureCanvas.getContext('2d');
+  }
+  // Square texture keeps each cube face undistorted regardless of source size.
+  textureCanvas.width = textureCanvas.height = 512;
+  drawTextureFrame(0);
+
+  cubeTexture = new THREE.CanvasTexture(textureCanvas);
+  cubeTexture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.MeshBasicMaterial({ map: cubeTexture });
   const geo = new THREE.BoxGeometry(2, 2, 2);
   mesh = new THREE.Mesh(geo, mat);
   // edge lines
@@ -484,6 +581,9 @@ exportBtn.addEventListener('click', async () => {
       const t = i / total;
       const r = rotationAt(currentAnim, t);
       mesh.rotation.set(r.x, r.y, r.z);
+      // advance the gif texture by real elapsed time so it plays (and loops)
+      // on the cube faces while the cube itself spins
+      drawTextureFrame((i / fps) * 1000);
       renderer.render(threeScene, camera);
       gif.addFrame(glcanvas, { copy: true, delay });
       bar.style.width = ((i+1)/total * 50).toFixed(1) + '%';
