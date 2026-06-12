@@ -561,7 +561,15 @@ exportBtn.addEventListener('click', async () => {
     const workerURL = await getWorkerURL();
 
     const fps = 24;
-    const duration = parseFloat(durSlider.value);
+    let duration = parseFloat(durSlider.value);
+    // When a gif is embedded, snap the loop length to a whole number of gif
+    // cycles (nearest to the requested duration, min 1) so the embedded gif
+    // ends exactly where it began — a seamless loop on the spinning cube.
+    let gifCycles = 1;
+    if (isGif && gifDuration > 0) {
+      gifCycles = Math.max(1, Math.round(duration * 1000 / gifDuration));
+      duration = gifCycles * gifDuration / 1000;
+    }
     const total = Math.round(fps * duration);
     const delay = Math.round(1000 / fps);
 
@@ -581,9 +589,10 @@ exportBtn.addEventListener('click', async () => {
       const t = i / total;
       const r = rotationAt(currentAnim, t);
       mesh.rotation.set(r.x, r.y, r.z);
-      // advance the gif texture by real elapsed time so it plays (and loops)
-      // on the cube faces while the cube itself spins
-      drawTextureFrame((i / fps) * 1000);
+      // Drive the gif from the loop fraction (gifCycles full plays over the
+      // export) so it lands exactly on a cycle boundary at the loop seam.
+      const gifTime = ((t * gifCycles) % 1) * gifDuration;
+      drawTextureFrame(gifTime);
       renderer.render(threeScene, camera);
       gif.addFrame(glcanvas, { copy: true, delay });
       bar.style.width = ((i+1)/total * 50).toFixed(1) + '%';
@@ -603,7 +612,8 @@ exportBtn.addEventListener('click', async () => {
       result.classList.add('show');
       progress.classList.remove('show');
       const kb = (blob.size/1024).toFixed(0);
-      status.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps`;
+      const loopNote = isGif ? ` · ${duration.toFixed(1)}s · ${gifCycles}× gif loop` : '';
+      status.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${loopNote}`;
       exportBtn.disabled = false;
     });
 
