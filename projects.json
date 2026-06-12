@@ -2,7 +2,7 @@
   "projects": [
     {
       "slug": "grand-theft-tokens-vi-vibe-city",
-      "title": "Fable 5 Max Impression - Grant Theft Tokens VI - Vibe City",
+      "title": "Fable 5 Max Impression - Grand Theft Tokens VI - Vibe City",
       "description": "A loving, entirely-original parody of a certain open-world crime game — built from boxes, math and AI jokes and rendered live with WebGL. Drive around neon-soaked Vibe City, commit version-control crimes, dodge a five-star wanted system, and hunt 25 hidden golden Attention Orbs. Runs entirely in your browser, nothing uploaded.",
       "tags": ["webgl", "three-js", "game", "open-world", "driving", "parody", "3d", "interactive", "browser"],
       "date": "2026-06-11",
@@ -10,12 +10,12 @@
       "pages": []
     },
     {
-      "slug": "fable5-max-impression-grant-theft-tokens-vi-vibe-city",
-      "title": "V1 - Fable 5 Max Impression - Grant Theft Tokens VI - Vibe City",
+      "slug": "fable5-max-impression-grand-theft-tokens-vi-vibe-city",
+      "title": "V1 - Fable 5 Max Impression - Grand Theft Tokens VI - Vibe City",
       "description": "A loving, entirely-original parody of a certain open-world crime game — built from boxes, math and AI jokes and rendered live with WebGL. Drive around neon-soaked Vibe City, commit version-control crimes, dodge a five-star wanted system, and hunt 25 hidden golden Attention Orbs. Runs entirely in your browser, nothing uploaded.",
       "tags": ["webgl", "three-js", "game", "open-world", "driving", "parody", "3d", "interactive", "browser"],
       "date": "2026-06-10",
-      "path": "projects/fable5-max-impression-grant-theft-tokens-vi-vibe-city/",
+      "path": "projects/fable5-max-impression-grand-theft-tokens-vi-vibe-city/",
       "pages": []
     },
     {
