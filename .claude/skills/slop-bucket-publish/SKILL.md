@@ -36,11 +36,9 @@ date = today) and proceed.
 ## Fixed facts (this setup)
 
 - GitHub repo: `weesechedge/Slop-Bucket` (public)
-- Local clone: `<local clone>`
 - Live site: https://weesechedge.github.io/Slop-Bucket/
 - A project's live URL: `https://weesechedge.github.io/Slop-Bucket/projects/<slug>/`
 - gh CLI: `gh` (authenticated as `weesechedge`)
-- git author: name `weesechedge`, email `redacted@example.com`
 - `projects.json` is the source of truth for the homepage — never hand-edit the list
   markup inside `index.html`.
 - `.nojekyll` must stay (serves files verbatim).
@@ -148,7 +146,7 @@ Skip the hub only for a single-page project (the page itself is `index.html`).
 
 ## Procedure
 
-1. **Pull latest:** `git -C "<local clone>" pull --rebase --autostash`
+1. **Pull latest** (run from the repo clone): `git pull --rebase --autostash`
 2. **Resolve inputs** (see *Inputs* above): files, new-vs-existing project, title, slug, order.
 3. **Create/locate** `projects/<slug>/`. If it exists and this is a new project, confirm add/update.
 4. **Copy** the HTML page(s) in (own filenames for multi-page; supporting assets alongside, relative paths intact).
@@ -157,15 +155,15 @@ Skip the hub only for a single-page project (the page itself is `index.html`).
 7. **Update `projects.json`** — add/update the entry with its ordered `pages` array; keep valid JSON; date = today.
 8. **Commit & push:**
    ```
-   git -C "<local clone>" add -A
-   git -C "<local clone>" commit -m "Publish <slug>"
-   git -C "<local clone>" push
+   git add -A
+   git commit -m "Publish <slug>"
+   git push
    ```
 9. **Verify live** (Pages rebuilds in ~1 min): GET the project URL + one inner page and confirm HTTP 200.
 10. **Report** the project URL: `https://weesechedge.github.io/Slop-Bucket/projects/<slug>/`
 
 ## Notes
 
-- Auth issues: `& "gh" auth status`; re-login `gh auth login --web`.
+- Auth issues: `gh auth status`; re-login `gh auth login --web`.
 - Remove a project: delete `projects/<slug>/` + its `projects.json` entry; commit/push.
 - Keep the user's original HTML byte-for-byte except for the injected `<nav>` block.
