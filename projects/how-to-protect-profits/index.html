@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>How to Protect Profits — the Masked Economist's arcade</title>
+<meta name="description" content="A playable tribute to Dr Paul Hubbard: economist, conductor, and the APS's first Assistant Secretary for AI Delivery & Enablement. Catch the profits. Dodge the hype. Deliver the value." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0E1633;        /* concert-hall midnight navy */
+    --ink-2:#161F44;      /* lifted panel */
+    --ink-3:#1E2A57;
+    --gold:#E8B33D;       /* brass + profit */
+    --gold-soft:#F2CE78;
+    --jade:#3FB6A0;       /* public value (good) */
+    --vermilion:#E2553B;  /* hype / red tape (avoid) + seal red */
+    --wood:#B07A4B;       /* violin wood */
+    --paper:#F4EFE2;      /* warm off-white text */
+    --paper-dim:#C8C3D6;
+    --line:rgba(244,239,226,.14);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #20305f 0%, var(--ink) 55%, #080d22 100%);
+    color:var(--paper);
+    font-family:"Space Grotesk", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100dvh; overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  /* ===== Cabinet / playfield ===== */
+  #cabinet{
+    position:relative;
+    width:min(100vw, 520px);
+    height:min(100dvh, 880px);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 30px 90px rgba(0,0,0,.55), inset 0 0 0 1px var(--line);
+    background:linear-gradient(180deg, #101a3d 0%, #0c1431 100%);
+    touch-action:none;
+    isolation:isolate;
+  }
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+
+  /* ===== HUD ===== */
+  #hud{
+    position:absolute; inset:0 0 auto 0; z-index:5;
+    padding:10px 12px 0; pointer-events:none;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .hud-row{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .stage-tag{
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--gold-soft); font-weight:700;
+    display:flex; align-items:center; gap:8px; min-width:0;
+  }
+  .stage-tag .num{
+    color:var(--ink); background:var(--gold); border-radius:6px;
+    padding:1px 6px; font-size:11px; letter-spacing:.04em;
+  }
+  .stage-tag .nm{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; letter-spacing:.04em; color:var(--paper)}
+  #lives{display:flex; gap:3px; font-size:15px; line-height:1}
+  .score-wrap{display:flex; align-items:baseline; gap:6px}
+  #score{font-family:"Fraunces",serif; font-weight:900; font-size:22px; line-height:1; color:var(--paper)}
+  .score-lab{font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--paper-dim)}
+  #combo{font-size:11px; color:var(--gold); font-weight:700; min-height:14px; letter-spacing:.02em}
+  /* value meter */
+  .meter{position:relative; height:9px; border-radius:99px; background:rgba(255,255,255,.08); overflow:hidden; box-shadow:inset 0 0 0 1px var(--line)}
+  .meter > span{position:absolute; inset:0 100% 0 0; background:linear-gradient(90deg,var(--jade),#7fe3cf); transition:right .25s ease}
+  .meter-lab{display:flex; justify-content:space-between; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--paper-dim); margin-top:3px}
+  .meter-lab b{color:var(--jade); font-weight:700}
+
+  /* top-right controls */
+  #tools{position:absolute; top:10px; right:12px; z-index:7; display:flex; gap:6px; pointer-events:auto}
+  .icon-btn{
+    width:30px;height:30px;border-radius:8px;border:1px solid var(--line);
+    background:rgba(8,12,32,.5); color:var(--paper); font-size:14px; cursor:pointer;
+    display:flex;align-items:center;justify-content:center; backdrop-filter:blur(4px);
+  }
+  .icon-btn:hover{border-color:var(--gold)}
+  .icon-btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+
+  /* power-up status pills */
+  #fx{position:absolute; left:0; right:0; bottom:54px; z-index:5; display:flex; gap:6px; justify-content:center; pointer-events:none; flex-wrap:wrap; padding:0 12px}
+  .pill{font-size:11px; font-weight:700; letter-spacing:.04em; padding:3px 9px; border-radius:99px; background:rgba(8,12,32,.6); border:1px solid var(--line); display:flex; gap:5px; align-items:center}
+  .pill.violin{color:var(--wood); border-color:rgba(176,122,75,.6)}
+  .pill.book{color:var(--gold); border-color:rgba(232,179,61,.55)}
+  .pill.govai{color:var(--jade); border-color:rgba(63,182,160,.55)}
+
+  /* ticker */
+  #ticker{
+    position:absolute; left:0; right:0; bottom:0; z-index:6; height:34px;
+    background:linear-gradient(0deg, rgba(8,12,32,.92), rgba(8,12,32,.55));
+    border-top:1px solid var(--line); overflow:hidden; display:flex; align-items:center;
+    font-size:11.5px; letter-spacing:.02em; color:var(--paper-dim);
+  }
+  #ticker .seal{flex:0 0 auto; padding:0 10px; color:var(--vermilion); font-family:"Fraunces",serif; font-weight:900; font-size:13px; border-right:1px solid var(--line); height:100%; display:flex; align-items:center}
+  #ticker .track{white-space:nowrap; will-change:transform; padding-left:10px}
+  #ticker b{color:var(--gold-soft); font-weight:700}
+
+  /* ===== Overlays ===== */
+  .overlay{
+    position:absolute; inset:0; z-index:20; display:none;
+    flex-direction:column; align-items:center; justify-content:center; text-align:center;
+    padding:26px 24px; gap:14px;
+    background:radial-gradient(120% 90% at 50% 18%, rgba(20,30,70,.86), rgba(8,12,32,.96));
+    backdrop-filter:blur(3px); overflow-y:auto;
+  }
+  .overlay.show{display:flex; animation:fade .35s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  .seal-mark{
+    font-family:"Fraunces",serif; font-weight:900; color:var(--vermilion);
+    border:2px solid var(--vermilion); border-radius:10px; padding:5px 9px; font-size:20px;
+    letter-spacing:.1em; line-height:1; box-shadow:0 0 0 4px rgba(226,85,59,.12);
+  }
+  .eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold-soft); font-weight:700}
+  h1{font-family:"Fraunces",serif; font-weight:900; font-size:clamp(34px, 11vw, 50px); line-height:.96; margin:2px 0; letter-spacing:-.01em}
+  h1 .you{display:block; font-size:.42em; letter-spacing:.04em; color:var(--paper-dim); font-weight:600; margin-top:8px}
+  .sub{max-width:34ch; color:var(--paper-dim); font-size:13.5px; line-height:1.55}
+  .sub b{color:var(--paper)}
+
+  .btn{
+    font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:15px; letter-spacing:.01em;
+    color:var(--ink); background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+    border:none; border-radius:12px; padding:13px 26px; cursor:pointer;
+    box-shadow:0 10px 24px rgba(232,179,61,.28), inset 0 1px 0 rgba(255,255,255,.5);
+    transition:transform .08s ease, filter .15s ease;
+  }
+  .btn:hover{filter:brightness(1.05)}
+  .btn:active{transform:translateY(1px)}
+  .btn:focus-visible{outline:2px solid var(--paper); outline-offset:3px}
+  .btn.ghost{background:transparent; color:var(--paper); box-shadow:inset 0 0 0 1px var(--line); font-weight:600}
+  .btn.ghost:hover{box-shadow:inset 0 0 0 1px var(--gold)}
+
+  .controls-hint{font-size:11.5px; color:var(--paper-dim); display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:2px}
+  .controls-hint kbd{font-family:"Space Grotesk"; background:rgba(255,255,255,.07); border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:10.5px; color:var(--paper)}
+
+  /* briefing card */
+  .brief-card{
+    background:linear-gradient(180deg, rgba(30,42,87,.7), rgba(14,22,51,.7));
+    border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:12px; padding:16px 18px; max-width:38ch; text-align:left;
+  }
+  .brief-card .who{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-soft); font-weight:700; margin-bottom:6px}
+  .brief-card p{margin:0; font-size:13px; line-height:1.6; color:var(--paper)}
+  .brief-card .src{display:block; margin-top:8px; font-size:10.5px; color:var(--paper-dim); letter-spacing:.02em}
+
+  /* legend grid on title */
+  .legend{display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; max-width:33ch; font-size:12px; color:var(--paper-dim); text-align:left}
+  .legend div{display:flex; gap:7px; align-items:center}
+  .legend .e{font-size:15px; width:20px; text-align:center}
+  .legend .g{color:var(--jade)} .legend .b{color:var(--vermilion)} .legend .p{color:var(--gold-soft)}
+
+  details.about{max-width:36ch; text-align:left; color:var(--paper-dim); font-size:12px}
+  details.about summary{cursor:pointer; color:var(--gold-soft); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; list-style:none}
+  details.about summary::-webkit-details-marker{display:none}
+  details.about p{line-height:1.6; margin:10px 0 0}
+  details.about a{color:var(--jade)}
+
+  .stat-row{display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin-top:2px}
+  .stat{text-align:center}
+  .stat .v{font-family:"Fraunces",serif; font-weight:900; font-size:26px; color:var(--gold); line-height:1}
+  .stat .l{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--paper-dim); margin-top:3px}
+
+  .foot{position:absolute; bottom:40px; left:0; right:0; text-align:center; font-size:10px; color:var(--paper-dim); letter-spacing:.05em; z-index:4; pointer-events:none}
+
+  @media (max-height:680px){
+    .controls-hint, .foot{display:none}
+    h1{font-size:clamp(30px,10vw,42px)}
+  }
+</style>
+</head>
+<body>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">How to Protect Profits</span></nav>
+<div id="cabinet" aria-label="How to Protect Profits — arcade game">
+  <canvas id="c"></canvas>
+
+  <!-- top controls -->
+  <div id="tools">
+    <button class="icon-btn" id="muteBtn" title="Sound on/off" aria-label="Toggle sound">♪</button>
+    <button class="icon-btn" id="pauseBtn" title="Pause" aria-label="Pause">⏸</button>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" hidden>
+    <div class="hud-row">
+      <div class="stage-tag"><span class="num" id="lvlNum">1</span><span class="nm" id="lvlName">SASAC Sector Sweep</span></div>
+      <div id="lives">🎭🎭🎭</div>
+    </div>
+    <div class="hud-row">
+      <div class="score-wrap"><span id="score">0</span><span class="score-lab">value pts</span></div>
+      <div id="combo"></div>
+    </div>
+    <div>
+      <div class="meter"><span id="meterFill"></span></div>
+      <div class="meter-lab"><span id="meterLeft">Public value delivered</span><b id="meterRight">0%</b></div>
+    </div>
+  </div>
+
+  <div id="fx"></div>
+
+  <!-- ticker -->
+  <div id="ticker"><div class="seal">护&nbsp;利</div><div class="track" id="tickTrack"></div></div>
+
+  <!-- TITLE -->
+  <div class="overlay show" id="ovTitle">
+    <div class="seal-mark">护其利</div>
+    <div class="eyebrow">The Masked Economist's arcade</div>
+    <h1>How to Protect&nbsp;Profits
+      <span class="you">Dr Paul Hubbard's Chinese name — and, frankly, his whole job description.</span>
+    </h1>
+    <p class="sub">Take the baton as the <b>Masked Economist</b>. Catch the profits, deliver the public value, and dodge the hype and red tape — across the SOE sectors, the AI Plan, and a Wednesday-afternoon livestream.</p>
+    <button class="btn" id="startBtn">Take the baton ▸</button>
+    <div class="controls-hint">
+      <span><kbd>←</kbd><kbd>→</kbd> or drag to move</span>
+      <span><kbd>P</kbd> pause</span>
+      <span><kbd>M</kbd> mute</span>
+    </div>
+    <div class="legend">
+      <div><span class="e">🛢️</span><span class="g">Sector profits — catch</span></div>
+      <div><span class="e">📈</span><span class="g">Public value — catch</span></div>
+      <div><span class="e">💭</span><span class="b">AI hype — dodge</span></div>
+      <div><span class="e">🧾</span><span class="b">Red tape — dodge</span></div>
+      <div><span class="e">🎻</span><span class="p">Violin — slow the tempo</span></div>
+      <div><span class="e">📕</span><span class="p">Gould book — 2× points</span></div>
+      <div><span class="e">🤖</span><span class="p">GovAI Chat — magnet</span></div>
+      <div><span class="e">🎭</span><span class="p">Mask — clear the board</span></div>
+    </div>
+    <details class="about">
+      <summary>Who is this?</summary>
+      <p>Dr Paul Hubbard is the Australian Public Service's first Assistant Secretary, AI Delivery &amp; Enablement (Department of Finance), co-head of the AI CoLab, host of <i>The Masked Economist</i>, conductor of the Maruki Community Orchestra, and author of a book on violist John Gould. His ANU PhD examined the profits of China's state-owned enterprises. He makes apps on the weekend. This is one of them, sort of.</p>
+      <p>Built from public sources: <a href="https://www.digital.gov.au/policy/ai/australian-public-service-ai-plan-2025" target="_blank" rel="noopener">APS AI Plan 2025</a> · <a href="https://www.govai.gov.au/aide" target="_blank" rel="noopener">AIDE</a> · <a href="https://srwfoundation.anu.edu.au/dr-paul-hubbard" target="_blank" rel="noopener">SRW Foundation</a>.</p>
+    </details>
+  </div>
+
+  <!-- BRIEFING -->
+  <div class="overlay" id="ovBrief">
+    <div class="eyebrow" id="briefStage">Stage 1 of 5</div>
+    <h1 id="briefTitle" style="font-size:clamp(26px,8vw,38px)">SASAC Sector Sweep</h1>
+    <div class="brief-card">
+      <div class="who" id="briefWho">From the Hubbard thesis</div>
+      <p id="briefText">—</p>
+      <span class="src" id="briefSrc"></span>
+    </div>
+    <button class="btn" id="briefBtn">Begin ▸</button>
+  </div>
+
+  <!-- PAUSE -->
+  <div class="overlay" id="ovPause">
+    <div class="eyebrow">Intermission</div>
+    <h1 style="font-size:clamp(28px,9vw,42px)">Paused</h1>
+    <p class="sub">The orchestra holds. Press <b>P</b> or resume when you're ready.</p>
+    <button class="btn" id="resumeBtn">Resume ▸</button>
+    <button class="btn ghost" id="quitBtn">Back to title</button>
+  </div>
+
+  <!-- GAME OVER -->
+  <div class="overlay" id="ovOver">
+    <div class="seal-mark" style="border-color:var(--vermilion)">利</div>
+    <div class="eyebrow">Budget reality bites</div>
+    <h1 style="font-size:clamp(30px,9vw,44px)">Profits unprotected</h1>
+    <div class="stat-row">
+      <div class="stat"><div class="v" id="overScore">0</div><div class="l">value pts</div></div>
+      <div class="stat"><div class="v" id="overBest">0</div><div class="l">best</div></div>
+      <div class="stat"><div class="v" id="overStage">1</div><div class="l">reached stage</div></div>
+    </div>
+    <p class="sub" id="overQuip">—</p>
+    <button class="btn" id="overBtn">Encore — try again ▸</button>
+  </div>
+
+  <!-- VICTORY -->
+  <div class="overlay" id="ovWin">
+    <div class="seal-mark">护其利</div>
+    <div class="eyebrow">Whole-of-APS rollout complete</div>
+    <h1 style="font-size:clamp(30px,9vw,44px)">Value delivered</h1>
+    <div class="stat-row">
+      <div class="stat"><div class="v">$19B</div><div class="l">annual value</div></div>
+      <div class="stat"><div class="v">220k</div><div class="l">staff AI-enabled</div></div>
+      <div class="stat"><div class="v" id="winScore">0</div><div class="l">your score</div></div>
+    </div>
+    <p class="sub"><b>护其利 — profits protected, hype dodged, public value delivered.</b> Sir Roland Wilson would be proud. Now go make an app on the weekend.</p>
+    <button class="btn" id="winBtn">Conduct it again ▸</button>
+  </div>
+
+  <div class="foot">A fan-made tribute · not affiliated with the Department of Finance · facts from public sources</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- safe storage ----------
+  var Store = {
+    get:function(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+    set:function(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  };
+
+  // ---------- audio (lazy, optional) ----------
+  var actx=null, muted=(Store.get('htpp_mute')==='1');
+  function ensureAudio(){
+    if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx=null; } }
+    if(actx && actx.state==='suspended'){ try{ actx.resume(); }catch(e){} }
+  }
+  function tone(freq,dur,type,gain,when){
+    if(muted||!actx) return;
+    try{
+      var t=actx.currentTime+(when||0);
+      var o=actx.createOscillator(), g=actx.createGain();
+      o.type=type||'sine'; o.frequency.setValueAtTime(freq,t);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(gain||0.06,t+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+    }catch(e){}
+  }
+  function sGood(){ tone(660,0.10,'triangle',0.05); tone(990,0.12,'triangle',0.045,0.05); }
+  function sValue(){ tone(523,0.10,'sine',0.05); tone(784,0.14,'sine',0.05,0.06); }
+  function sBad(){ tone(150,0.22,'sawtooth',0.05); tone(110,0.26,'sawtooth',0.04,0.04); }
+  function sPow(){ tone(440,0.08,'square',0.04); tone(660,0.08,'square',0.04,0.06); tone(880,0.12,'square',0.04,0.12); }
+  function sLevel(){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++) tone(n[i],0.16,'triangle',0.05,i*0.10); }
+  function sWin(){ var n=[523,659,784,1047,1319]; for(var i=0;i<n.length;i++) tone(n[i],0.22,'sine',0.055,i*0.13); }
+
+  // ---------- canvas ----------
+  var cab=document.getElementById('cabinet');
+  var canvas=document.getElementById('c');
+  var ctx=canvas.getContext('2d');
+  var W=0,H=0,DPR=1;
+  function resize(){
+    DPR=Math.min(window.devicePixelRatio||1, 2.5);
+    W=cab.clientWidth; H=cab.clientHeight;
+    canvas.width=Math.round(W*DPR); canvas.height=Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- item definitions ----------
+  // cat: 'good' | 'bad' | 'pow'
+  var KINDS={
+    oil:    {cat:'good', e:'🛢️', pts:14, meter:7, col:'#E8B33D', tag:'oil & gas'},
+    elec:   {cat:'good', e:'⚡',  pts:14, meter:7, col:'#F2CE78', tag:'electricity'},
+    tobacco:{cat:'good', e:'🚬', pts:14, meter:7, col:'#C8A24a', tag:'tobacco'},
+    auto:   {cat:'good', e:'🚗', pts:14, meter:7, col:'#D9B45a', tag:'automobiles'},
+    coin:   {cat:'good', e:'💰', pts:10, meter:5, col:'#E8B33D', tag:'profit'},
+    value:  {cat:'good', e:'📈', pts:12, meter:9, col:'#3FB6A0', tag:'public value'},
+    usecase:{cat:'good', e:'✅', pts:12, meter:9, col:'#7fe3cf', tag:'AI use case'},
+    hype:   {cat:'bad',  e:'💭', col:'#E2553B', tag:'AI hype'},
+    slop:   {cat:'bad',  e:'🌀', col:'#E2553B', tag:'AI slop'},
+    tape:   {cat:'bad',  e:'🧾', col:'#E2553B', tag:'red tape'},
+    chain:  {cat:'bad',  e:'⛓️', col:'#E2553B', tag:'barrier'},
+    violin: {cat:'pow',  e:'🎻', col:'#B07A4B', pw:'violin'},
+    book:   {cat:'pow',  e:'📕', col:'#E8B33D', pw:'book'},
+    govai:  {cat:'pow',  e:'🤖', col:'#3FB6A0', pw:'govai'},
+    mask:   {cat:'pow',  e:'🎭', col:'#F2CE78', pw:'mask'}
+  };
+
+  // ---------- levels ----------
+  var LEVELS=[
+    {
+      name:'SASAC Sector Sweep', goal:90, speed:120, spawn:820,
+      good:['oil','elec','tobacco','auto','coin'], bad:['hype'], tint:'#E8B33D',
+      who:'From the Hubbard thesis (ANU, 2018)',
+      text:"State-sector profits aren't really about monopoly muscle. Hubbard found the aggregate profits of China's SOEs are driven more by how their assets are spread across resources, manufacturing and utilities than by concentration within any single industry. Catch the sector profits — oil & gas, electricity, tobacco, autos — where the real monopolies still live.",
+      src:'Source: P.C. Hubbard, “Where Have China’s State Monopolies Gone?”'
+    },
+    {
+      name:'The Masked Economist, Live', goal:120, speed:140, spawn:760,
+      good:['coin','value','usecase','oil','elec'], bad:['hype','slop'], tint:'#3FB6A0',
+      who:'Wednesdays, 4–5pm, on GovTEAMS',
+      text:"The Masked Economist started as a lockdown tutorial in PM&C and scaled up at Finance into a livestreamed show that unpacks economic jargon for the econ-curious. Catch the good economics and dodge the hype bubbles. The 🎻 violin slows the tempo to a largo — Paul also conducts the Maruki Orchestra.",
+      src:'Source: APS Academy — “The Department of Finance presents: The Masked Economist”'
+    },
+    {
+      name:'AIDE: Clear the Red Tape', goal:150, speed:165, spawn:680,
+      good:['value','usecase','coin','auto'], bad:['tape','chain','hype'], tint:'#E2553B',
+      who:'AI Delivery & Enablement, Dept of Finance',
+      text:"AIDE is the APS's central AI function. Its job is blunt: find the steps in our processes that make it hard to use AI safely, and remove them. The board fills with red tape and barriers — dodge them. Grab the 🤖 GovAI Chat magnet to pull value toward you, and the 🎭 mask to clear the board.",
+      src:'Source: GovAI — “Artificial Intelligence Delivery and Enablement (AIDE)”'
+    },
+    {
+      name:'Roll Out GovAI Chat', goal:180, speed:185, spawn:600,
+      good:['value','usecase','coin','elec','tobacco'], bad:['hype','slop','tape'], tint:'#F2CE78',
+      who:'APS AI Plan 2025 — People & Tools',
+      text:"Every agency appoints a Chief AI Officer by July 2026, and 220,000+ public servants get foundational AI training on secure, sovereign GovAI. Things move faster now. The 📕 Gould book doubles your points — proceeds, as ever, to the orchestra.",
+      src:'Source: Department of Finance — “Establishing Chief AI Officers for the APS”'
+    },
+    {
+      name:'$19 Billion by 2030', goal:220, speed:210, spawn:520,
+      good:['oil','elec','tobacco','auto','coin','value','usecase'], bad:['hype','slop','tape','chain'], tint:'#E8B33D',
+      who:'The whole-of-APS prize',
+      text:"By 2030, AI could lift public-sector value added by about 13 per cent — roughly $19 billion a year. Everything's on the board now: every sector, every barrier. Fill the meter and protect the lot.",
+      src:'Source: APS AI Plan 2025 (Merom, 2025)'
+    }
+  ];
+
+  var TICKER=[
+    "Paul C. Hubbard is the APS's <b>first Assistant Secretary, AI Delivery & Enablement</b> — the government's central AI team.",
+    "His ANU PhD: <b>“The Nature and Performance of China's State-owned Enterprises.”</b>",
+    "Remaining Chinese state monopolies cluster in <b>oil & gas, electricity, tobacco and (maybe) autos.</b>",
+    "<b>The Masked Economist</b> exists to “spread the joy of economics.” Wednesdays, 4pm, GovTEAMS.",
+    "Paul conducts the <b>Maruki Community Orchestra</b> and wrote a book on violist <b>John Gould.</b>",
+    "LinkedIn tagline: <b>“Conductor. AI. Masked Economist.”</b>",
+    "He testified before the <b>US–China Economic & Security Review Commission</b> in 2016.",
+    "Won the <b>2024 Ian Castles Alumni Prize</b> for linking ANU research to public policy.",
+    "<b>AIDE</b> removes the barriers that make it hard for the APS to use AI safely and effectively.",
+    "The <b>APS AI Plan 2025</b> rests on three pillars: <b>Trust, People, Tools.</b>",
+    "John Gould was principal violist of the <b>London Symphony Orchestra.</b>",
+    "He makes apps on the weekend. <b>护其利</b> — “protect profits.”"
+  ];
+
+  var OVERQUIPS=[
+    "The Masked Economist notes: profits are a portfolio problem, not a monopoly problem. Try again.",
+    "Sunk costs are sunk. Re-run the rollout.",
+    "Even a great conductor drops a beat. Pick the baton back up.",
+    "Contestable advice: you'll do better next time. Encore?",
+    "The hype got in. That's exactly the barrier AIDE exists to remove. Go again."
+  ];
+
+  // ---------- game state ----------
+  var STATE='title';
+  var lvlIdx=0;
+  var player={x:0, w:0, hands:0, lean:0, bob:0};
+  var items=[];
+  var particles=[];
+  var floaters=[]; // score popups in world space
+  var score=0, combo=0, comboMax=0, lives=3, value=0;
+  var best=parseInt(Store.get('htpp_best')||'0',10)||0;
+  var spawnAcc=0, t=0, shake=0;
+  var timeScale=1;
+  var fx={violin:0, book:0, govai:0}; // remaining seconds
+  var input={left:false, right:false, pointerX:null};
+  var staffOffset=0;
+
+  // ---------- DOM ----------
+  var hud=document.getElementById('hud');
+  var elScore=document.getElementById('score');
+  var elCombo=document.getElementById('combo');
+  var elLives=document.getElementById('lives');
+  var elLvlNum=document.getElementById('lvlNum');
+  var elLvlName=document.getElementById('lvlName');
+  var elMeterFill=document.getElementById('meterFill');
+  var elMeterRight=document.getElementById('meterRight');
+  var elFx=document.getElementById('fx');
+
+  function ov(id){ return document.getElementById(id); }
+  function showOverlay(id){
+    ['ovTitle','ovBrief','ovPause','ovOver','ovWin'].forEach(function(o){ ov(o).classList.remove('show'); });
+    if(id) ov(id).classList.add('show');
+  }
+
+  // ---------- ticker ----------
+  (function buildTicker(){
+    var track=document.getElementById('tickTrack');
+    var html=TICKER.map(function(s){ return '<span style="padding:0 26px">'+s+'</span>'; }).join('•');
+    track.innerHTML=html+'•'+html;
+    var x=0, last=performance.now();
+    function step(now){
+      var dt=(now-last)/1000; last=now;
+      if(STATE==='playing'){ x-=dt*55; if(x < -track.scrollWidth/2) x+=track.scrollWidth/2; }
+      track.style.transform='translateX('+x+'px)';
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  })();
+
+  // ---------- helpers ----------
+  function rand(a,b){ return a+Math.random()*(b-a); }
+  function pick(arr){ return arr[(Math.random()*arr.length)|0]; }
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+
+  function lvl(){ return LEVELS[lvlIdx]; }
+
+  function setLives(n){
+    lives=n; var s=''; for(var i=0;i<n;i++) s+='🎭'; for(var j=n;j<3;j++) s+='<span style="opacity:.22">🎭</span>';
+    elLives.innerHTML=s;
+  }
+
+  function updateHUD(){
+    elScore.textContent=score;
+    var g=lvl().goal;
+    var pct=clamp(Math.round(value/g*100),0,100);
+    elMeterFill.style.right=(100-pct)+'%';
+    elMeterRight.textContent=pct+'%';
+    elLvlNum.textContent=(lvlIdx+1);
+    elLvlName.textContent=lvl().name;
+    elCombo.textContent= combo>=3 ? ('combo ×'+comboTier()+'  ('+combo+')') : '';
+    // fx pills
+    var p='';
+    if(fx.violin>0) p+='<span class="pill violin">🎻 largo '+fx.violin.toFixed(0)+'s</span>';
+    if(fx.book>0)   p+='<span class="pill book">📕 ×2 '+fx.book.toFixed(0)+'s</span>';
+    if(fx.govai>0)  p+='<span class="pill govai">🤖 magnet '+fx.govai.toFixed(0)+'s</span>';
+    elFx.innerHTML=p;
+  }
+
+  function comboTier(){ if(combo>=20) return 4; if(combo>=12) return 3; if(combo>=6) return 2; return 1; }
+  function comboMult(){ var m=comboTier()*0.5+0.5; return fx.book>0 ? m*2 : m; } // tier1=1x ... tier4=2.5x; book doubles
+
+  // ---------- spawning ----------
+  function spawnItem(){
+    var L=lvl();
+    var r=Math.random();
+    var kind;
+    if(r<0.10){ // power-up chance, gated by level
+      var pool=[];
+      if(lvlIdx>=1) pool.push('violin');
+      if(lvlIdx>=2) pool.push('govai','mask');
+      if(lvlIdx>=3) pool.push('book');
+      if(lvlIdx>=4) pool.push('violin','book','govai','mask');
+      kind = pool.length? pick(pool) : pick(L.good);
+    } else if(r<0.10+0.30){ // bad
+      kind=pick(L.bad);
+    } else {
+      kind=pick(L.good);
+    }
+    var def=KINDS[kind];
+    var size= def.cat==='pow'?30: (def.cat==='bad'?28:26);
+    var x=rand(size, W-size);
+    var spd=L.speed*rand(0.85,1.18) + (def.cat==='bad'?14:0);
+    items.push({k:kind, def:def, x:x, y:-size, r:size, vy:spd, vx:rand(-12,12), spin:rand(-1,1), rot:0, alive:true});
+  }
+
+  // ---------- effects ----------
+  function burst(x,y,col,n){
+    if(reduceMotion){ return; }
+    n=n||10;
+    for(var i=0;i<n;i++){
+      var a=rand(0,Math.PI*2), s=rand(40,200);
+      particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-40,life:rand(0.4,0.8),age:0,col:col,sz:rand(2,4.5)});
+    }
+  }
+  function popup(x,y,txt,col){
+    floaters.push({x:x,y:y,txt:txt,col:col,age:0,life:0.9});
+  }
+  function doShake(a){ if(!reduceMotion) shake=Math.max(shake,a); }
+
+  // ---------- catching ----------
+  function handY(){ return H - 96; }
+
+  function catchItem(it){
+    var def=it.def;
+    if(def.cat==='good'){
+      var gained=Math.round(def.pts*comboMult());
+      score+=gained; combo++; comboMax=Math.max(comboMax,combo);
+      value+=def.meter;
+      burst(it.x, handY()-6, def.col, 12);
+      popup(it.x, handY()-26, '+'+gained, def.col);
+      (def.col==='#3FB6A0'||def.col==='#7fe3cf') ? sValue() : sGood();
+      if(value>=lvl().goal){ levelClear(); }
+    } else if(def.cat==='bad'){
+      combo=0; setLives(lives-1);
+      burst(it.x, handY()-6, '#E2553B', 16);
+      popup(it.x, handY()-26, def.tag, '#E2553B');
+      doShake(12); sBad();
+      if(lives<=0){ gameOver(); }
+    } else { // power
+      applyPower(def.pw, it);
+    }
+  }
+
+  function applyPower(pw, it){
+    sPow();
+    if(pw==='violin'){ fx.violin=5; popup(it.x, handY()-26,'Largo','#B07A4B'); burst(it.x,handY()-6,'#B07A4B',14); }
+    else if(pw==='book'){ fx.book=8; popup(it.x, handY()-26,'×2 points','#E8B33D'); burst(it.x,handY()-6,'#E8B33D',14); }
+    else if(pw==='govai'){ fx.govai=6; popup(it.x, handY()-26,'Magnet on','#3FB6A0'); burst(it.x,handY()-6,'#3FB6A0',14); }
+    else if(pw==='mask'){
+      var cleared=0;
+      for(var i=0;i<items.length;i++){ if(items[i].alive && items[i].def.cat==='bad'){ burst(items[i].x,items[i].y,'#F2CE78',8); items[i].alive=false; cleared++; } }
+      score+=cleared*8; combo+=cleared;
+      popup(it.x, handY()-26,'Board cleared','#F2CE78'); burst(it.x,handY()-6,'#F2CE78',20); doShake(6);
+    }
+  }
+
+  // ---------- level / game flow ----------
+  function showBrief(){
+    STATE='brief';
+    var L=lvl();
+    ov('briefStage').textContent='Stage '+(lvlIdx+1)+' of '+LEVELS.length;
+    ov('briefTitle').textContent=L.name;
+    ov('briefWho').textContent=L.who;
+    ov('briefText').textContent=L.text;
+    ov('briefSrc').textContent=L.src;
+    showOverlay('ovBrief');
+  }
+
+  function startLevel(){
+    STATE='playing';
+    items.length=0; particles.length=0; floaters.length=0;
+    value=0; spawnAcc=0; timeScale=1; fx={violin:0,book:0,govai:0};
+    hud.hidden=false;
+    showOverlay(null);
+    updateHUD();
+  }
+
+  function levelClear(){
+    sLevel();
+    if(lvlIdx>=LEVELS.length-1){ win(); return; }
+    lvlIdx++;
+    // small breath then briefing
+    STATE='clear';
+    setTimeout(showBrief, 650);
+  }
+
+  function gameOver(){
+    STATE='over';
+    if(score>best){ best=score; Store.set('htpp_best', String(best)); }
+    ov('overScore').textContent=score;
+    ov('overBest').textContent=best;
+    ov('overStage').textContent=(lvlIdx+1);
+    ov('overQuip').textContent=pick(OVERQUIPS);
+    hud.hidden=true;
+    showOverlay('ovOver');
+  }
+
+  function win(){
+    STATE='win';
+    if(score>best){ best=score; Store.set('htpp_best', String(best)); }
+    ov('winScore').textContent=score;
+    hud.hidden=true; sWin();
+    showOverlay('ovWin');
+  }
+
+  function newGame(){
+    lvlIdx=0; score=0; combo=0; comboMax=0; setLives(3);
+    player.x=W/2; player.w=Math.min(96, W*0.22);
+    showBrief();
+  }
+
+  // ---------- update ----------
+  function update(dt){
+    if(STATE!=='playing') return;
+    t+=dt;
+
+    // timescale from violin
+    var target = fx.violin>0 ? 0.42 : 1;
+    timeScale += (target-timeScale)*Math.min(1, dt*6);
+    var sdt=dt*timeScale;
+
+    // decay fx (real time, not scaled — feels fairer)
+    for(var key in fx){ if(fx[key]>0){ fx[key]=Math.max(0, fx[key]-dt); } }
+
+    // player movement
+    var speed=W*1.7;
+    if(input.pointerX!=null){
+      player.x += (input.pointerX-player.x)*Math.min(1,dt*16);
+    } else {
+      var dir=(input.right?1:0)-(input.left?1:0);
+      player.x += dir*speed*dt;
+      player.lean += (dir*0.5 - player.lean)*Math.min(1,dt*10);
+    }
+    if(input.pointerX!=null){
+      var v=(input.pointerX-player.x);
+      player.lean += (clamp(v*0.02,-0.5,0.5) - player.lean)*Math.min(1,dt*10);
+    }
+    player.x=clamp(player.x, player.w*0.5, W-player.w*0.5);
+    player.bob += dt*6;
+
+    // spawn
+    spawnAcc+=dt*1000;
+    var interval=lvl().spawn;
+    if(spawnAcc>=interval){ spawnAcc=0; spawnItem(); if(Math.random()<0.18) spawnItem(); }
+
+    // items
+    var hy=handY();
+    var catchHalf=player.w*0.5+8;
+    for(var i=items.length-1;i>=0;i--){
+      var it=items[i];
+      if(!it.alive){ items.splice(i,1); continue; }
+      // govai magnet pulls good items
+      if(fx.govai>0 && it.def.cat==='good'){
+        it.x += (player.x-it.x)*Math.min(1,sdt*2.2);
+      }
+      it.y+=it.vy*sdt;
+      it.x+=it.vx*sdt;
+      if(it.x<it.r){ it.x=it.r; it.vx=Math.abs(it.vx); }
+      if(it.x>W-it.r){ it.x=W-it.r; it.vx=-Math.abs(it.vx); }
+      it.rot+=it.spin*sdt;
+
+      // catch band
+      if(it.y>=hy-14 && it.y<=hy+22){
+        if(Math.abs(it.x-player.x)<catchHalf){
+          it.alive=false; items.splice(i,1);
+          player.hands=1; // animate
+          catchItem(it);
+          continue;
+        }
+      }
+      // missed
+      if(it.y>H+it.r){
+        items.splice(i,1);
+        if(it.def.cat==='good'){ combo=0; } // gentle: lose combo only
+      }
+    }
+
+    // particles
+    for(var p=particles.length-1;p>=0;p--){
+      var pa=particles[p]; pa.age+=dt;
+      if(pa.age>=pa.life){ particles.splice(p,1); continue; }
+      pa.vy+=300*dt; pa.x+=pa.vx*dt; pa.y+=pa.vy*dt;
+    }
+    // floaters
+    for(var f=floaters.length-1;f>=0;f--){
+      var fl=floaters[f]; fl.age+=dt; fl.y-=26*dt;
+      if(fl.age>=fl.life) floaters.splice(f,1);
+    }
+
+    player.hands += (0-player.hands)*Math.min(1,dt*8);
+    if(shake>0) shake=Math.max(0, shake-dt*40);
+    staffOffset=(staffOffset+sdt*16)% 38;
+
+    updateHUD();
+  }
+
+  // ---------- draw ----------
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // background wash tinted by level
+    var tint = (STATE==='playing'||STATE==='clear') ? lvl().tint : '#E8B33D';
+    var g=ctx.createRadialGradient(W/2,H*0.2,20, W/2,H*0.3,H*0.95);
+    g.addColorStop(0,'rgba(40,56,112,0.55)');
+    g.addColorStop(1,'rgba(8,12,32,0.0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+    // faint staff lines (sheet music)
+    ctx.save();
+    ctx.globalAlpha=0.06; ctx.strokeStyle=tint; ctx.lineWidth=1;
+    for(var y=60+staffOffset; y<H-40; y+=38){
+      ctx.beginPath(); ctx.moveTo(16,y); ctx.lineTo(W-16,y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // watermark 利 (profit)
+    ctx.save();
+    ctx.globalAlpha=0.05; ctx.fillStyle=tint;
+    ctx.font='900 '+Math.min(W*0.7,360)+'px Fraunces, serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('利', W/2, H*0.46);
+    ctx.restore();
+
+    var ox=0, oy=0;
+    if(shake>0){ ox=rand(-shake,shake); oy=rand(-shake,shake); }
+    ctx.save(); ctx.translate(ox,oy);
+
+    // catch line glow + spotlight on player (only while playing)
+    if(STATE==='playing'||STATE==='clear'){
+      var hy=handY();
+      // spotlight
+      var sp=ctx.createRadialGradient(player.x,hy,8, player.x,hy,170);
+      sp.addColorStop(0,'rgba(242,206,120,0.18)');
+      sp.addColorStop(1,'rgba(242,206,120,0)');
+      ctx.fillStyle=sp; ctx.fillRect(0,hy-180,W,260);
+
+      // items
+      for(var i=0;i<items.length;i++){ drawItem(items[i]); }
+
+      // particles
+      for(var p=0;p<particles.length;p++){
+        var pa=particles[p]; var a=1-(pa.age/pa.life);
+        ctx.globalAlpha=a; ctx.fillStyle=pa.col;
+        ctx.beginPath(); ctx.arc(pa.x,pa.y,pa.sz,0,Math.PI*2); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+
+      drawConductor(player.x, hy);
+
+      // floaters
+      ctx.textAlign='center';
+      for(var f=0;f<floaters.length;f++){
+        var fl=floaters[f]; var fa=1-(fl.age/fl.life);
+        ctx.globalAlpha=fa; ctx.fillStyle=fl.col;
+        ctx.font='700 16px "Space Grotesk", sans-serif';
+        ctx.fillText(fl.txt, fl.x, fl.y);
+      }
+      ctx.globalAlpha=1;
+    }
+
+    // violin tint
+    if(fx.violin>0){
+      ctx.globalAlpha=Math.min(0.16, fx.violin*0.05);
+      ctx.fillStyle='#B07A4B'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+    }
+
+    ctx.restore();
+  }
+
+  function drawItem(it){
+    ctx.save();
+    ctx.translate(it.x,it.y);
+    ctx.rotate(Math.sin(it.rot)*0.18);
+    // glow ring by category
+    var ring = it.def.cat==='bad' ? 'rgba(226,85,59,0.5)' : (it.def.cat==='pow'?'rgba(242,206,120,0.6)':'rgba(232,179,61,0.35)');
+    ctx.shadowColor=ring; ctx.shadowBlur= it.def.cat==='pow'?16:10;
+    if(it.def.cat==='bad'){
+      // hazard halo
+      ctx.beginPath(); ctx.arc(0,0,it.r*0.82,0,Math.PI*2);
+      ctx.strokeStyle='rgba(226,85,59,0.55)'; ctx.lineWidth=2; ctx.stroke();
+    }
+    ctx.shadowBlur= it.def.cat==='pow'?16:6;
+    ctx.font=(it.r*1.35|0)+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(it.def.e, 0, 1);
+    ctx.restore();
+  }
+
+  // The signature: the Masked Economist — tuxedoed conductor in a domino mask, baton sweeping
+  function drawConductor(cx, hy){
+    var w=player.w, bobY=Math.sin(player.bob)*1.5, lean=player.lean;
+    ctx.save();
+    ctx.translate(cx, hy+bobY);
+    ctx.rotate(lean*0.06);
+
+    var skin='#E7B98C', tux='#0c1020', shirt='#F4EFE2', gold='#E8B33D', wood='#B07A4B';
+    var bodyW=w*0.62, headR=w*0.17;
+
+    // podium
+    ctx.fillStyle='rgba(8,12,32,0.9)';
+    roundRect(-w*0.5, 44, w, 16, 5); ctx.fill();
+    ctx.fillStyle='rgba(176,122,75,0.5)';
+    roundRect(-w*0.5, 44, w, 4, 2); ctx.fill();
+
+    // catching arms / bar (the visual "basket")
+    var handLift = player.hands*8;
+    ctx.strokeStyle=tux; ctx.lineWidth=w*0.085; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-bodyW*0.5, 6);
+    ctx.quadraticCurveTo(-w*0.5, -10-handLift, -w*0.52, -16-handLift);
+    ctx.moveTo(bodyW*0.5, 6);
+    ctx.quadraticCurveTo(w*0.5, -10-handLift, w*0.52, -16-handLift);
+    ctx.stroke();
+
+    // baton in right hand
+    ctx.save();
+    ctx.translate(w*0.52, -16-handLift);
+    ctx.rotate(-0.5 + lean*0.3 + player.hands*0.3);
+    ctx.strokeStyle=wood; ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(w*0.34,-w*0.1); ctx.stroke();
+    ctx.fillStyle='#F4EFE2'; ctx.beginPath(); ctx.arc(w*0.34,-w*0.1,2.6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // body (tux trapezoid)
+    ctx.fillStyle=tux;
+    ctx.beginPath();
+    ctx.moveTo(-bodyW*0.32,-6);
+    ctx.lineTo(bodyW*0.32,-6);
+    ctx.lineTo(bodyW*0.5,44);
+    ctx.lineTo(-bodyW*0.5,44);
+    ctx.closePath(); ctx.fill();
+
+    // shirt V
+    ctx.fillStyle=shirt;
+    ctx.beginPath();
+    ctx.moveTo(0,-4); ctx.lineTo(bodyW*0.14,40); ctx.lineTo(-bodyW*0.14,40); ctx.closePath(); ctx.fill();
+    // bow tie
+    ctx.fillStyle=gold;
+    ctx.beginPath();
+    ctx.moveTo(-7,-2); ctx.lineTo(0,2); ctx.lineTo(-7,6); ctx.closePath();
+    ctx.moveTo(7,-2); ctx.lineTo(0,2); ctx.lineTo(7,6); ctx.closePath();
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(0,2,1.8,0,Math.PI*2); ctx.fillStyle='#0c1020'; ctx.fill();
+
+    // head
+    ctx.fillStyle=skin;
+    ctx.beginPath(); ctx.arc(0,-6-headR*0.7, headR, 0, Math.PI*2); ctx.fill();
+    // hair
+    ctx.fillStyle='#2a2330';
+    ctx.beginPath();
+    ctx.arc(0,-6-headR*0.7, headR, Math.PI*1.06, Math.PI*1.94);
+    ctx.lineTo(headR*0.7, -6-headR*0.95);
+    ctx.fill();
+
+    // domino mask (the signature)
+    var my=-6-headR*0.75;
+    ctx.fillStyle='#11152e';
+    roundRect(-headR*0.95, my-headR*0.26, headR*1.9, headR*0.6, headR*0.28); ctx.fill();
+    // eye holes
+    ctx.fillStyle=shirt;
+    ctx.beginPath(); ctx.arc(-headR*0.42, my+headR*0.04, headR*0.16,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(headR*0.42, my+headR*0.04, headR*0.16,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#11152e';
+    ctx.beginPath(); ctx.arc(-headR*0.40, my+headR*0.06, headR*0.07,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(headR*0.44, my+headR*0.06, headR*0.07,0,Math.PI*2); ctx.fill();
+    // mask top accent
+    ctx.strokeStyle=gold; ctx.lineWidth=1.4;
+    roundRect(-headR*0.95, my-headR*0.26, headR*1.9, headR*0.6, headR*0.28); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  // ---------- main loop ----------
+  var last=performance.now();
+  function frame(now){
+    var dt=Math.min(0.05,(now-last)/1000); last=now;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  window.addEventListener('keydown', function(e){
+    var k=e.key.toLowerCase();
+    if(k==='arrowleft'||k==='a'){ input.left=true; input.pointerX=null; }
+    else if(k==='arrowright'||k==='d'){ input.right=true; input.pointerX=null; }
+    else if(k==='p'||k==='escape'){ togglePause(); }
+    else if(k==='m'){ toggleMute(); }
+    else if(k==='enter'||k===' '){
+      if(STATE==='title'){ e.preventDefault(); startGameFromTitle(); }
+      else if(STATE==='brief'){ e.preventDefault(); startLevel(); }
+      else if(STATE==='over'){ e.preventDefault(); newGame(); }
+      else if(STATE==='win'){ e.preventDefault(); newGame(); }
+    }
+  });
+  window.addEventListener('keyup', function(e){
+    var k=e.key.toLowerCase();
+    if(k==='arrowleft'||k==='a') input.left=false;
+    if(k==='arrowright'||k==='d') input.right=false;
+  });
+
+  function pointerMove(clientX){
+    var rect=canvas.getBoundingClientRect();
+    input.pointerX=clamp(clientX-rect.left, 0, W);
+  }
+  canvas.addEventListener('pointerdown', function(e){ ensureAudio(); pointerMove(e.clientX); });
+  canvas.addEventListener('pointermove', function(e){ if(e.pressure>0 || e.buttons>0 || e.pointerType!=='mouse'){ pointerMove(e.clientX);} else if(e.pointerType==='mouse'){ pointerMove(e.clientX);} });
+  canvas.addEventListener('touchmove', function(e){ e.preventDefault(); if(e.touches[0]) pointerMove(e.touches[0].clientX); }, {passive:false});
+  canvas.addEventListener('touchstart', function(e){ ensureAudio(); if(e.touches[0]) pointerMove(e.touches[0].clientX); }, {passive:false});
+
+  // ---------- buttons ----------
+  function startGameFromTitle(){ ensureAudio(); newGame(); }
+  document.getElementById('startBtn').addEventListener('click', startGameFromTitle);
+  document.getElementById('briefBtn').addEventListener('click', function(){ ensureAudio(); startLevel(); });
+  document.getElementById('resumeBtn').addEventListener('click', togglePause);
+  document.getElementById('quitBtn').addEventListener('click', function(){ STATE='title'; hud.hidden=true; showOverlay('ovTitle'); });
+  document.getElementById('overBtn').addEventListener('click', function(){ ensureAudio(); newGame(); });
+  document.getElementById('winBtn').addEventListener('click', function(){ ensureAudio(); newGame(); });
+  document.getElementById('pauseBtn').addEventListener('click', togglePause);
+  document.getElementById('muteBtn').addEventListener('click', toggleMute);
+
+  var pausedFrom=null;
+  function togglePause(){
+    if(STATE==='playing'){ pausedFrom='playing'; STATE='pause'; showOverlay('ovPause'); }
+    else if(STATE==='pause'){ STATE=pausedFrom||'playing'; showOverlay(null); last=performance.now(); }
+  }
+  function toggleMute(){
+    muted=!muted; Store.set('htpp_mute', muted?'1':'0');
+    document.getElementById('muteBtn').textContent= muted?'✕':'♪';
+    document.getElementById('muteBtn').style.color= muted?'#E2553B':'';
+    if(!muted) ensureAudio();
+  }
+  if(muted){ document.getElementById('muteBtn').textContent='✕'; document.getElementById('muteBtn').style.color='#E2553B'; }
+
+  // ---------- boot ----------
+  resize();
+  player.x=W/2; player.w=Math.min(96, W*0.22);
+  setLives(3);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,15 @@
 {
   "projects": [
     {
+      "slug": "how-to-protect-profits",
+      "title": "How to Protect Profits",
+      "description": "A playable tribute to Dr Paul Hubbard — economist, conductor, and the APS's first Assistant Secretary for AI Delivery & Enablement. Take the baton as the Masked Economist: catch the sector profits and public value, dodge the hype and red tape, and conduct your way across five stages drawn from his thesis, his livestream, and the APS AI Plan 2025.",
+      "tags": ["game", "arcade", "canvas", "economics", "ai-policy", "aps", "paul-hubbard", "tribute", "interactive", "browser"],
+      "date": "2026-06-16",
+      "path": "projects/how-to-protect-profits/",
+      "pages": []
+    },
+    {
       "slug": "grand-theft-tokens-vi-vibe-city",
       "title": "Grand Theft Tokens VI - Vibe City",
       "description": "A loving, entirely-original parody of a certain open-world crime game — built from boxes, math and AI jokes and rendered live with WebGL. Drive around neon-soaked Vibe City, commit version-control crimes, dodge a five-star wanted system, and hunt 25 hidden golden Attention Orbs. Runs entirely in your browser, nothing uploaded.",
