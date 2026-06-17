@@ -111,7 +111,6 @@
     width: 180px; height: 180px;
     background-size: cover;
     background-position: center;
-    border: 1.5px solid rgba(255,94,58,0.55);
     box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
     backface-visibility: visible;
   }
@@ -647,12 +646,7 @@ function buildMesh() {
   const mat = new THREE.MeshBasicMaterial({ map: cubeTexture });
   const geo = new THREE.BoxGeometry(2, 2, 2);
   mesh = new THREE.Mesh(geo, mat);
-  // edge lines
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geo),
-    new THREE.LineBasicMaterial({ color: 0xff5e3a })
-  );
-  mesh.add(edges);
+  // No edge lines — the image/gif should cover each face edge to edge.
   threeScene.add(mesh);
 }
 
