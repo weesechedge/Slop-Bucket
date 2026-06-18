@@ -99,46 +99,13 @@
     letter-spacing: 0.2em;
   }
 
-  .scene { width: 180px; height: 180px; perspective: 700px; }
-  .cube {
-    width: 100%; height: 100%;
-    position: relative;
-    transform-style: preserve-3d;
-    animation: spin 8s infinite linear;
-  }
-  .face {
-    position: absolute;
-    width: 180px; height: 180px;
-    background-size: cover;
-    background-position: center;
-    box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
-    backface-visibility: visible;
-  }
-  .front  { transform: rotateY(0deg)   translateZ(90px); }
-  .back   { transform: rotateY(180deg) translateZ(90px); }
-  .right  { transform: rotateY(90deg)  translateZ(90px); }
-  .left   { transform: rotateY(-90deg) translateZ(90px); }
-  .top    { transform: rotateX(90deg)  translateZ(90px); }
-  .bottom { transform: rotateX(-90deg) translateZ(90px); }
-
-  @keyframes spin {
-    0%   { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
-    25%  { transform: rotateX(90deg)  rotateY(90deg)  rotateZ(15deg); }
-    50%  { transform: rotateX(180deg) rotateY(180deg) rotateZ(0deg); }
-    75%  { transform: rotateX(270deg) rotateY(270deg) rotateZ(-15deg); }
-    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg); }
-  }
-  @keyframes slowSpin {
-    0%   { transform: rotateX(0deg) rotateY(0deg); }
-    100% { transform: rotateX(360deg) rotateY(360deg); }
-  }
-  @keyframes tumble {
-    0%   { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
-    20%  { transform: rotateX(72deg)  rotateY(144deg) rotateZ(36deg); }
-    40%  { transform: rotateX(144deg) rotateY(72deg)  rotateZ(-20deg); }
-    60%  { transform: rotateX(216deg) rotateY(288deg) rotateZ(25deg); }
-    80%  { transform: rotateX(288deg) rotateY(180deg) rotateZ(-15deg); }
-    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg); }
+  /* Live preview is rendered with WebGL (same Three.js geometry as the export)
+     so both the cube and the d20 share one code path and the preview matches
+     the exported gif exactly. */
+  #preview {
+    width: 200px;
+    height: 200px;
+    display: none;
   }
 
   /* Controls */
@@ -265,19 +232,18 @@
   </div>
 
   <div class="stage empty" id="stage">
-    <div class="scene" style="display:none" id="scene">
-      <div class="cube" id="cube">
-        <div class="face front"></div>
-        <div class="face back"></div>
-        <div class="face right"></div>
-        <div class="face left"></div>
-        <div class="face top"></div>
-        <div class="face bottom"></div>
-      </div>
-    </div>
+    <canvas id="preview" width="400" height="400"></canvas>
   </div>
 
   <div class="panel">
+    <div class="row">
+      <div class="label">Shape</div>
+      <div class="seg" id="shapeSeg">
+        <button class="on" data-shape="cube">Cube</button>
+        <button data-shape="d20">D20</button>
+      </div>
+    </div>
+
     <div class="row">
       <div class="label">Animation</div>
       <div class="seg" id="seg">
@@ -320,11 +286,10 @@
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
 const stage = document.getElementById('stage');
-const scene = document.getElementById('scene');
-const cube = document.getElementById('cube');
-const faces = document.querySelectorAll('.face');
+const previewCanvas = document.getElementById('preview');
 const exportBtn = document.getElementById('export');
 const seg = document.getElementById('seg');
+const shapeSeg = document.getElementById('shapeSeg');
 const durSlider = document.getElementById('dur');
 const durVal = document.getElementById('durVal');
 const progress = document.getElementById('progress');
@@ -337,13 +302,15 @@ const dl = document.getElementById('dl');
 let imageURL = null;
 let imageEl = null;
 let currentAnim = 'dynamic';
+let currentShape = 'cube';  // 'cube' | 'd20'
 
 /* animated-gif decode state (populated only when a multi-frame gif is uploaded) */
 let isGif = false;          // true when the upload is an animated (>1 frame) gif
 let gifFrames = null;       // [{ canvas, delay(ms) }] fully-composited frames
 let gifDuration = 0;        // total loop length of the source gif, ms
 
-const animClass = { dynamic: 'spin', slow: 'slowSpin', tumble: 'tumble' };
+/* live-preview spin period per animation (ms) — mirrors the old CSS durations */
+const animPeriod = { dynamic: 8000, slow: 20000, tumble: 6000 };
 
 /* ---------- upload handling ---------- */
 function loadImage(file) {
@@ -356,13 +323,14 @@ function loadImage(file) {
 
   imageEl = new Image();
   imageEl.onload = () => {
-    // CSS background animates gifs natively, so the live preview is already correct
-    faces.forEach(f => f.style.backgroundImage = `url(${imageURL})`);
-    scene.style.display = 'block';
+    if (!previewRenderer) initThree();
+    buildMesh();
+    previewCanvas.style.display = 'block';
     stage.classList.remove('empty');
     exportBtn.disabled = false;
     result.classList.remove('show');
     status.textContent = 'ready';
+    startPreview();
     if (file.type === 'image/gif') decodeGif(file);
   };
   imageEl.src = imageURL;
@@ -559,7 +527,15 @@ seg.addEventListener('click', e => {
   currentAnim = e.target.dataset.anim;
   seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
   e.target.classList.add('on');
-  cube.style.animation = `${animClass[currentAnim]} ${currentAnim==='slow'?20:(currentAnim==='tumble'?6:8)}s infinite ${currentAnim==='tumble'?'ease-in-out':'linear'}`;
+  previewStart = performance.now();   // restart the loop cleanly on the new path
+});
+
+shapeSeg.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  currentShape = e.target.dataset.shape;
+  shapeSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  e.target.classList.add('on');
+  if (imageEl) buildMesh();           // swap cube ↔ d20 geometry live
 });
 
 durSlider.addEventListener('input', () => {
@@ -598,15 +574,29 @@ function rotationAt(anim, t) {
 
 /* ---------- WebGL setup for export ---------- */
 const glcanvas = document.getElementById('glcanvas');
-let renderer, threeScene, camera, mesh;
+let renderer, previewRenderer, threeScene, camera, mesh;
 
 function initThree() {
-  renderer = new THREE.WebGLRenderer({ canvas: glcanvas, antialias: true, preserveDrawingBuffer: true, alpha: false });
-  renderer.setSize(360, 360, false);
-  renderer.setClearColor(0x07070b, 1);
   threeScene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
   camera.position.z = 4.6;
+
+  // Gentle lighting gives each facet its own shading so the form reads as 3D
+  // (essential for the 20 faces of the d20) without drawing any face borders.
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.82));
+  const key = new THREE.DirectionalLight(0xffffff, 0.55);
+  key.position.set(2, 3, 4);
+  threeScene.add(key);
+
+  // Visible preview renderer — transparent clear so the stage glow shows through.
+  previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
+  previewRenderer.setSize(400, 400, false);
+  previewRenderer.setClearColor(0x000000, 0);
+
+  // Offscreen renderer used only for gif export — solid background, readable pixels.
+  renderer = new THREE.WebGLRenderer({ canvas: glcanvas, antialias: true, preserveDrawingBuffer: true, alpha: false });
+  renderer.setSize(360, 360, false);
+  renderer.setClearColor(0x07070b, 1);
 }
 
 // A canvas we repaint each frame; the cube texture reads from it so an
@@ -630,24 +620,82 @@ function drawTextureFrame(elapsedMs) {
   if (cubeTexture) cubeTexture.needsUpdate = true;
 }
 
+/* Map the full image onto each triangular face of the icosahedron. Polyhedron
+   geometry is non-indexed (3 unique verts per face), so we just hand every face
+   the same upright triangle inscribed in the texture — the image lands on all
+   20 faces, edge to edge, the same way it covers each face of the cube. */
+function applyTriUVs(geo) {
+  const pos = geo.attributes.position;
+  const faceCount = pos.count / 3;
+  const uv = new Float32Array(pos.count * 2);
+  const tri = [0.5, 0.96,  0.04, 0.13,  0.96, 0.13]; // apex top, then two base corners
+  for (let f = 0; f < faceCount; f++) {
+    for (let v = 0; v < 3; v++) {
+      const i = (f * 3 + v) * 2;
+      uv[i]     = tri[v * 2];
+      uv[i + 1] = tri[v * 2 + 1];
+    }
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+
 function buildMesh() {
-  if (mesh) { threeScene.remove(mesh); mesh.geometry.dispose(); }
+  if (mesh) {
+    threeScene.remove(mesh);
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  }
 
   if (!textureCanvas) {
     textureCanvas = document.createElement('canvas');
     textureCtx = textureCanvas.getContext('2d');
   }
-  // Square texture keeps each cube face undistorted regardless of source size.
+  // Square texture keeps each face undistorted regardless of source size.
   textureCanvas.width = textureCanvas.height = 512;
   drawTextureFrame(0);
 
-  cubeTexture = new THREE.CanvasTexture(textureCanvas);
-  cubeTexture.minFilter = THREE.LinearFilter;
-  const mat = new THREE.MeshBasicMaterial({ map: cubeTexture });
-  const geo = new THREE.BoxGeometry(2, 2, 2);
+  if (!cubeTexture) {
+    cubeTexture = new THREE.CanvasTexture(textureCanvas);
+    cubeTexture.minFilter = THREE.LinearFilter;
+  }
+  const mat = new THREE.MeshPhongMaterial({ map: cubeTexture, shininess: 6 });
+
+  let geo;
+  if (currentShape === 'd20') {
+    geo = new THREE.IcosahedronGeometry(1.55, 0);
+    applyTriUVs(geo);
+  } else {
+    geo = new THREE.BoxGeometry(2, 2, 2);
+  }
   mesh = new THREE.Mesh(geo, mat);
   // No edge lines — the image/gif should cover each face edge to edge.
   threeScene.add(mesh);
+}
+
+/* ---------- live preview loop ---------- */
+let previewRunning = false;
+let previewStart = 0;
+
+function startPreview() {
+  previewStart = performance.now();
+  if (previewRunning) return;
+  previewRunning = true;
+  requestAnimationFrame(previewTick);
+}
+function stopPreview() { previewRunning = false; }
+
+function previewTick(now) {
+  if (!previewRunning) return;
+  const period = animPeriod[currentAnim] || 8000;
+  const elapsed = now - previewStart;
+  const t = (elapsed % period) / period;
+  const r = rotationAt(currentAnim, t);
+  if (mesh) mesh.rotation.set(r.x, r.y, r.z);
+  // Static images are painted once in buildMesh; only animated gifs need a
+  // fresh texture frame each tick.
+  if (isGif && gifFrames) drawTextureFrame(gifDuration > 0 ? (elapsed % gifDuration) : 0);
+  previewRenderer.render(threeScene, camera);
+  requestAnimationFrame(previewTick);
 }
 
 /* ---------- worker blob (avoids cross-origin worker error) ---------- */
@@ -668,6 +716,7 @@ exportBtn.addEventListener('click', async () => {
   progress.classList.add('show');
   bar.style.width = '0%';
   status.textContent = 'initialising…';
+  stopPreview();   // free the shared mesh/texture while we render export frames
 
   try {
     if (!renderer) initThree();
@@ -723,12 +772,14 @@ exportBtn.addEventListener('click', async () => {
       const url = URL.createObjectURL(blob);
       outImg.src = url;
       dl.href = url;
+      dl.download = currentShape === 'd20' ? 'd20.gif' : 'cube.gif';
       result.classList.add('show');
       progress.classList.remove('show');
       const kb = (blob.size/1024).toFixed(0);
       const loopNote = isGif ? ` · ${duration.toFixed(1)}s · ${gifCycles}× gif loop` : '';
       status.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${loopNote}`;
       exportBtn.disabled = false;
+      startPreview();   // resume the live spin
     });
 
     status.textContent = 'encoding…';
@@ -739,6 +790,7 @@ exportBtn.addEventListener('click', async () => {
     status.textContent = 'error: ' + err.message;
     progress.classList.remove('show');
     exportBtn.disabled = false;
+    startPreview();   // resume the live spin even if export failed
   }
 });
 </script>
