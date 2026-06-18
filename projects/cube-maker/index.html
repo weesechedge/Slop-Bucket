@@ -80,7 +80,8 @@
   /* Stage */
   .stage {
     position: relative;
-    height: 320px;
+    width: 100%;
+    aspect-ratio: 1 / 1;   /* large square so the cube/d20 can fill the window */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -103,8 +104,8 @@
      so both the cube and the d20 share one code path and the preview matches
      the exported gif exactly. */
   #preview {
-    width: 200px;
-    height: 200px;
+    width: 96%;
+    height: 96%;
     display: none;
   }
 
@@ -232,7 +233,7 @@
   </div>
 
   <div class="stage empty" id="stage">
-    <canvas id="preview" width="400" height="400"></canvas>
+    <canvas id="preview" width="600" height="600"></canvas>
   </div>
 
   <div class="panel">
@@ -579,18 +580,17 @@ let renderer, previewRenderer, threeScene, camera, mesh;
 function initThree() {
   threeScene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  camera.position.z = 4.6;
+  // Pull the camera in so the shape's circumscribed sphere (cube corners / d20
+  // vertices, both at radius √3) almost fills the square frame, with a small
+  // safety margin so nothing clips the border at any rotation.
+  const halfFov = (45 / 2) * Math.PI / 180;
+  camera.position.z = (Math.sqrt(3) / Math.sin(halfFov)) * 1.05;
 
-  // Gentle lighting gives each facet its own shading so the form reads as 3D
-  // (essential for the 20 faces of the d20) without drawing any face borders.
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.82));
-  const key = new THREE.DirectionalLight(0xffffff, 0.55);
-  key.position.set(2, 3, 4);
-  threeScene.add(key);
-
-  // Visible preview renderer — transparent clear so the stage glow shows through.
+  // Unlit, flat material (no shading as it spins) — set up per-mesh in buildMesh.
+  // Visible preview renderer — transparent clear so blank areas blend with the
+  // stage background instead of showing a solid box.
   previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
-  previewRenderer.setSize(400, 400, false);
+  previewRenderer.setSize(600, 600, false);
   previewRenderer.setClearColor(0x000000, 0);
 
   // Offscreen renderer used only for gif export — solid background, readable pixels.
@@ -658,11 +658,16 @@ function buildMesh() {
     cubeTexture = new THREE.CanvasTexture(textureCanvas);
     cubeTexture.minFilter = THREE.LinearFilter;
   }
-  const mat = new THREE.MeshPhongMaterial({ map: cubeTexture, shininess: 6 });
+  // Flat & unlit (no shading change as it rotates). transparent:true lets the
+  // image's blank/transparent areas show the background through, so a blank
+  // cube blends perfectly with the backdrop in both the preview and the export.
+  const mat = new THREE.MeshBasicMaterial({ map: cubeTexture, transparent: true });
 
   let geo;
   if (currentShape === 'd20') {
-    geo = new THREE.IcosahedronGeometry(1.55, 0);
+    // Circumradius √3 matches the cube's corner distance, so the d20 fills the
+    // frame just as fully as the cube (in both preview and gif export).
+    geo = new THREE.IcosahedronGeometry(Math.sqrt(3), 0);
     applyTriUVs(geo);
   } else {
     geo = new THREE.BoxGeometry(2, 2, 2);
