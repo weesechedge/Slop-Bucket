@@ -295,10 +295,10 @@ const durSlider = document.getElementById('dur');
 const durVal = document.getElementById('durVal');
 const progress = document.getElementById('progress');
 const bar = document.getElementById('bar');
-const status = document.getElementById('status');
 const result = document.getElementById('result');
 const outImg = document.getElementById('out');
 const dl = document.getElementById('dl');
+const statusEl = document.getElementById('status');
 
 let imageURL = null;
 let imageEl = null;
@@ -310,8 +310,16 @@ let isGif = false;          // true when the upload is an animated (>1 frame) gi
 let gifFrames = null;       // [{ canvas, delay(ms) }] fully-composited frames
 let gifDuration = 0;        // total loop length of the source gif, ms
 
-/* live-preview spin period per animation (ms) — mirrors the old CSS durations */
+/* spin period per animation (ms) — one full loop of the preview */
 const animPeriod = { dynamic: 8000, slow: 20000, tumble: 6000 };
+
+/* live-preview loop state */
+let previewRunning = false;
+let previewStart = 0;
+
+/* object URL of the most recently exported gif, kept so it can be revoked
+   before the next export replaces it (otherwise each export leaks its blob) */
+let lastOutURL = null;
 
 /* ---------- upload handling ---------- */
 function loadImage(file) {
@@ -324,16 +332,24 @@ function loadImage(file) {
 
   imageEl = new Image();
   imageEl.onload = () => {
-    if (!previewRenderer) initThree();
-    buildMesh();
-    previewCanvas.style.display = 'block';
-    stage.classList.remove('empty');
-    exportBtn.disabled = false;
-    result.classList.remove('show');
-    status.textContent = 'ready';
-    startPreview();
-    if (file.type === 'image/gif') decodeGif(file);
+    try {
+      if (!previewRenderer) initThree();
+      buildMesh();
+      previewCanvas.style.display = 'block';
+      stage.classList.remove('empty');
+      exportBtn.disabled = false;
+      result.classList.remove('show');
+      statusEl.textContent = 'ready';
+      startPreview();
+      if (file.type === 'image/gif') decodeGif(file);
+    } catch (err) {
+      // Most likely WebGL is unavailable or the three.js CDN failed to load.
+      console.error(err);
+      statusEl.textContent = 'error: could not start the renderer (WebGL / CDN unavailable?)';
+      exportBtn.disabled = true;
+    }
   };
+  imageEl.onerror = () => { statusEl.textContent = 'error: could not load that image'; };
   imageEl.src = imageURL;
 }
 
@@ -346,21 +362,25 @@ function deinterlaceRows(h) {
   return rows;
 }
 
-/* GIF-variant LZW decode → array of palette indices (length pixelCount) */
+/* GIF-variant LZW decode → array of palette indices (length pixelCount).
+   Uses flat prefix/suffix tables and an output stack rather than allocating a
+   fresh array per dictionary entry, so it stays fast and light on long gifs. */
 function lzwDecode(minCodeSize, data, pixelCount) {
   const out = new Uint8Array(pixelCount);
-  let outPos = 0;
   const clearCode = 1 << minCodeSize;
   const eoiCode = clearCode + 1;
+
+  // Dictionary as parallel tables: entry = prefix-code + a single suffix byte.
+  // Roots (0 … clearCode-1) are seeded so suffix[i] === i.
+  const prefix = new Int32Array(4096);
+  const suffix = new Uint8Array(4096);
+  const stack  = new Uint8Array(4096);
+  for (let i = 0; i < clearCode; i++) suffix[i] = i;
+
   let codeSize = minCodeSize + 1;
-  let dict;
-  const reset = () => {
-    dict = [];
-    for (let i = 0; i < clearCode; i++) dict.push([i]);
-    dict.push(null); dict.push(null); // clear + eoi placeholders
-    codeSize = minCodeSize + 1;
-  };
-  reset();
+  let next = clearCode + 2;       // next free dictionary slot (2 special codes reserved)
+  let oldCode = -1;
+  let firstByte = 0;
 
   let bitPos = 0;
   const totalBits = data.length * 8;
@@ -374,22 +394,46 @@ function lzwDecode(minCodeSize, data, pixelCount) {
     return code;
   };
 
-  let prev = null;
+  let outPos = 0;
   while (outPos < pixelCount) {
-    const code = readCode();
+    let code = readCode();
     if (code === eoiCode) break;
-    if (code === clearCode) { reset(); prev = null; continue; }
-    let entry;
-    if (code < dict.length) entry = dict[code];
-    else if (code === dict.length && prev) entry = prev.concat(prev[0]);
-    else break;
-    if (!entry) break;
-    for (let i = 0; i < entry.length && outPos < pixelCount; i++) out[outPos++] = entry[i];
-    if (prev) {
-      dict.push(prev.concat(entry[0]));
-      if (dict.length === (1 << codeSize) && codeSize < 12) codeSize++;
+    if (code === clearCode) {       // reset to the initial dictionary
+      codeSize = minCodeSize + 1;
+      next = clearCode + 2;
+      oldCode = -1;
+      continue;
     }
-    prev = entry;
+    if (code > next) break;         // corrupt stream → stop safely
+
+    if (oldCode === -1) {           // first data code after a clear (always a root)
+      firstByte = code;
+      out[outPos++] = code;
+      oldCode = code;
+      continue;
+    }
+
+    const inCode = code;
+    let sp = 0;
+    if (code === next) {            // KwKwK: code not in the table yet
+      stack[sp++] = firstByte;
+      code = oldCode;
+    }
+    while (code >= clearCode) {     // walk the prefix chain of a composite code
+      stack[sp++] = suffix[code];
+      code = prefix[code];
+    }
+    firstByte = code;              // chain ends at a root byte (suffix[code] === code)
+    stack[sp++] = code;
+    while (sp > 0 && outPos < pixelCount) out[outPos++] = stack[--sp];
+
+    if (next < 4096) {             // add new entry: oldCode + firstByte
+      prefix[next] = oldCode;
+      suffix[next] = firstByte;
+      next++;
+      if (next === (1 << codeSize) && codeSize < 12) codeSize++;
+    }
+    oldCode = inCode;
   }
   return out;
 }
@@ -463,7 +507,7 @@ function parseGifFrames(buffer) {
    works regardless of CDN availability. Produces frames shaped like
    { dims:{left,top,width,height}, disposalType, delay(ms), patch:RGBA }. */
 async function decodeGif(file) {
-  status.textContent = 'decoding gif frames…';
+  statusEl.textContent = 'decoding gif frames…';
   try {
     const buf = await file.arrayBuffer();
     const { width: gw, height: gh, frames } = parseGifFrames(buf);
@@ -472,13 +516,13 @@ async function decodeGif(file) {
       gifFrames = built;
       gifDuration = built.reduce((s, f) => s + f.delay, 0);
       isGif = true;
-      status.textContent = `ready · gif · ${built.length} frames embedded`;
+      statusEl.textContent = `ready · gif · ${built.length} frames embedded`;
     } else {
-      status.textContent = 'ready';
+      statusEl.textContent = 'ready';
     }
   } catch (err) {
     console.error(err);
-    status.textContent = 'ready · gif decode failed, exporting first frame';
+    statusEl.textContent = 'ready · gif decode failed, exporting first frame';
   }
 }
 
@@ -543,7 +587,7 @@ durSlider.addEventListener('input', () => {
   durVal.textContent = parseFloat(durSlider.value).toFixed(1) + ' s';
 });
 
-/* ---------- rotation math (matches CSS keyframes) ---------- */
+/* ---------- rotation math (drives both the preview and the export) ---------- */
 function rotationAt(anim, t) {
   // t in [0,1]; returns {x,y,z} radians
   const TAU = Math.PI * 2;
@@ -551,7 +595,7 @@ function rotationAt(anim, t) {
     return { x: t*TAU, y: t*TAU, z: 0 };
   }
   if (anim === 'tumble') {
-    const seg = [
+    const waypoints = [
       {x:0,   y:0,   z:0},
       {x:72,  y:144, z:36},
       {x:144, y:72,  z:-20},
@@ -560,7 +604,7 @@ function rotationAt(anim, t) {
       {x:360, y:360, z:0},
     ];
     const f = t * 5; const i = Math.min(4, Math.floor(f)); const k = f - i;
-    const a = seg[i], b = seg[i+1];
+    const a = waypoints[i], b = waypoints[i+1];
     const lerp = (p,q)=> (p + (q-p)*k) * Math.PI/180;
     return { x: lerp(a.x,b.x), y: lerp(a.y,b.y), z: lerp(a.z,b.z) };
   }
@@ -601,7 +645,7 @@ function initThree() {
 
 // A canvas we repaint each frame; the cube texture reads from it so an
 // animated gif can play across the exported frames instead of being frozen.
-let textureCanvas = null, textureCtx = null, cubeTexture = null;
+let textureCanvas = null, textureCtx = null, faceTexture = null;
 
 function drawTextureFrame(elapsedMs) {
   const c = textureCanvas, ctx = textureCtx;
@@ -617,7 +661,7 @@ function drawTextureFrame(elapsedMs) {
   } else {
     ctx.drawImage(imageEl, 0, 0, c.width, c.height);
   }
-  if (cubeTexture) cubeTexture.needsUpdate = true;
+  if (faceTexture) faceTexture.needsUpdate = true;
 }
 
 /* Map the full image onto each triangular face of the icosahedron. Polyhedron
@@ -648,20 +692,19 @@ function buildMesh() {
 
   if (!textureCanvas) {
     textureCanvas = document.createElement('canvas');
+    // Square texture keeps each face undistorted regardless of source size.
+    textureCanvas.width = textureCanvas.height = 512;
     textureCtx = textureCanvas.getContext('2d');
   }
-  // Square texture keeps each face undistorted regardless of source size.
-  textureCanvas.width = textureCanvas.height = 512;
-  drawTextureFrame(0);
-
-  if (!cubeTexture) {
-    cubeTexture = new THREE.CanvasTexture(textureCanvas);
-    cubeTexture.minFilter = THREE.LinearFilter;
+  if (!faceTexture) {
+    faceTexture = new THREE.CanvasTexture(textureCanvas);
+    faceTexture.minFilter = THREE.LinearFilter;
   }
+  drawTextureFrame(0);
   // Flat & unlit (no shading change as it rotates). transparent:true lets the
   // image's blank/transparent areas show the background through, so a blank
   // cube blends perfectly with the backdrop in both the preview and the export.
-  const mat = new THREE.MeshBasicMaterial({ map: cubeTexture, transparent: true });
+  const mat = new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true });
 
   let geo;
   if (currentShape === 'd20') {
@@ -678,13 +721,10 @@ function buildMesh() {
 }
 
 /* ---------- live preview loop ---------- */
-let previewRunning = false;
-let previewStart = 0;
-
 function startPreview() {
-  previewStart = performance.now();
   if (previewRunning) return;
   previewRunning = true;
+  previewStart = performance.now();
   requestAnimationFrame(previewTick);
 }
 function stopPreview() { previewRunning = false; }
@@ -697,8 +737,8 @@ function previewTick(now) {
   const r = rotationAt(currentAnim, t);
   if (mesh) mesh.rotation.set(r.x, r.y, r.z);
   // Static images are painted once in buildMesh; only animated gifs need a
-  // fresh texture frame each tick.
-  if (isGif && gifFrames) drawTextureFrame(gifDuration > 0 ? (elapsed % gifDuration) : 0);
+  // fresh texture frame each tick. (drawTextureFrame wraps the time itself.)
+  if (isGif && gifFrames) drawTextureFrame(elapsed);
   previewRenderer.render(threeScene, camera);
   requestAnimationFrame(previewTick);
 }
@@ -720,12 +760,11 @@ exportBtn.addEventListener('click', async () => {
   result.classList.remove('show');
   progress.classList.add('show');
   bar.style.width = '0%';
-  status.textContent = 'initialising…';
+  statusEl.textContent = 'initialising…';
   stopPreview();   // free the shared mesh/texture while we render export frames
 
   try {
     if (!renderer) initThree();
-    buildMesh();
     const workerURL = await getWorkerURL();
 
     const fps = 24;
@@ -750,49 +789,51 @@ exportBtn.addEventListener('click', async () => {
       dither: false
     });
 
-    status.textContent = `rendering 0 / ${total} frames`;
+    statusEl.textContent = `rendering 0 / ${total} frames`;
 
     // render frames sequentially, yielding so UI can update
     for (let i = 0; i < total; i++) {
       const t = i / total;
       const r = rotationAt(currentAnim, t);
       mesh.rotation.set(r.x, r.y, r.z);
-      // Drive the gif from the loop fraction (gifCycles full plays over the
-      // export) so it lands exactly on a cycle boundary at the loop seam.
-      const gifTime = ((t * gifCycles) % 1) * gifDuration;
-      drawTextureFrame(gifTime);
+      // Drive the gif so gifCycles full plays span the export — it lands exactly
+      // on a cycle boundary at the loop seam. (drawTextureFrame wraps the time.)
+      drawTextureFrame(t * gifCycles * gifDuration);
       renderer.render(threeScene, camera);
       gif.addFrame(glcanvas, { copy: true, delay });
       bar.style.width = ((i+1)/total * 50).toFixed(1) + '%';
-      status.textContent = `rendering ${i+1} / ${total} frames`;
+      statusEl.textContent = `rendering ${i+1} / ${total} frames`;
       if (i % 6 === 0) await new Promise(r => setTimeout(r, 0));
     }
 
     gif.on('progress', p => {
       bar.style.width = (50 + p*50).toFixed(1) + '%';
-      status.textContent = `encoding… ${Math.round(p*100)}%`;
+      statusEl.textContent = `encoding… ${Math.round(p*100)}%`;
     });
 
     gif.on('finished', blob => {
+      if (lastOutURL) URL.revokeObjectURL(lastOutURL);   // free the previous export
       const url = URL.createObjectURL(blob);
+      lastOutURL = url;
       outImg.src = url;
+      outImg.alt = `spinning ${currentShape} gif`;
       dl.href = url;
       dl.download = currentShape === 'd20' ? 'd20.gif' : 'cube.gif';
       result.classList.add('show');
       progress.classList.remove('show');
       const kb = (blob.size/1024).toFixed(0);
       const loopNote = isGif ? ` · ${duration.toFixed(1)}s · ${gifCycles}× gif loop` : '';
-      status.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${loopNote}`;
+      statusEl.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${loopNote}`;
       exportBtn.disabled = false;
       startPreview();   // resume the live spin
     });
 
-    status.textContent = 'encoding…';
+    statusEl.textContent = 'encoding…';
     gif.render();
 
   } catch (err) {
     console.error(err);
-    status.textContent = 'error: ' + err.message;
+    statusEl.textContent = 'error: ' + err.message;
     progress.classList.remove('show');
     exportBtn.disabled = false;
     startPreview();   // resume the live spin even if export failed
