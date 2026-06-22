@@ -192,7 +192,20 @@
 
   .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
   .result.show { display: flex; }
-  .result img { max-width: 100%; border-radius: 12px; border: 1px solid var(--line); }
+  .result img {
+    max-width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    /* checkerboard shows through where an exported gif is transparent */
+    background-color: #2a2a32;
+    background-image:
+      linear-gradient(45deg, #1c1c24 25%, transparent 25%),
+      linear-gradient(-45deg, #1c1c24 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #1c1c24 75%),
+      linear-gradient(-45deg, transparent 75%, #1c1c24 75%);
+    background-size: 18px 18px;
+    background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+  }
   .dl {
     display: inline-block;
     background: var(--accent2);
@@ -262,6 +275,14 @@
       </div>
     </div>
 
+    <div class="row">
+      <div class="label">Export background</div>
+      <div class="seg" id="bgSeg">
+        <button data-bg="dark">Dark</button>
+        <button class="on" data-bg="transparent">Transparent</button>
+      </div>
+    </div>
+
     <button class="export" id="export" disabled>EXPORT GIF</button>
 
     <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
@@ -291,6 +312,7 @@ const previewCanvas = document.getElementById('preview');
 const exportBtn = document.getElementById('export');
 const seg = document.getElementById('seg');
 const shapeSeg = document.getElementById('shapeSeg');
+const bgSeg = document.getElementById('bgSeg');
 const durSlider = document.getElementById('dur');
 const durVal = document.getElementById('durVal');
 const progress = document.getElementById('progress');
@@ -304,6 +326,12 @@ let imageURL = null;
 let imageEl = null;
 let currentAnim = 'dynamic';
 let currentShape = 'cube';  // 'cube' | 'd20'
+let bgMode = 'transparent'; // 'dark' | 'transparent' — exported gif background
+
+/* Chroma key used for transparent export: the export is rendered against this
+   colour (and blank face areas show it too), then gif.js keys it out to GIF
+   transparency. Vivid magenta so it almost never collides with image content. */
+const CHROMA_KEY = 0xff00ff;
 
 /* animated-gif decode state (populated only when a multi-frame gif is uploaded) */
 let isGif = false;          // true when the upload is an animated (>1 frame) gif
@@ -583,6 +611,13 @@ shapeSeg.addEventListener('click', e => {
   if (imageEl) buildMesh();           // swap cube ↔ d20 geometry live
 });
 
+bgSeg.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  bgMode = e.target.dataset.bg;       // affects the export only
+  bgSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  e.target.classList.add('on');
+});
+
 durSlider.addEventListener('input', () => {
   durVal.textContent = parseFloat(durSlider.value).toFixed(1) + ' s';
 });
@@ -620,6 +655,22 @@ function rotationAt(anim, t) {
 /* ---------- WebGL setup for export ---------- */
 const glcanvas = document.getElementById('glcanvas');
 let renderer, previewRenderer, threeScene, camera, mesh;
+let transRenderer = null, transCanvas = null;
+
+/* Renderer for transparent export. Separate from the dark one because it needs
+   antialiasing OFF — GIF's 1-bit transparency can't represent the half-opaque
+   pixels AA produces, so they'd leave a coloured fringe around the shape. It
+   clears to the chroma key, which gif.js then turns into transparency. */
+function ensureTransRenderer() {
+  if (!transRenderer) {
+    transCanvas = document.createElement('canvas');
+    transCanvas.width = transCanvas.height = 360;
+    transRenderer = new THREE.WebGLRenderer({ canvas: transCanvas, antialias: false, preserveDrawingBuffer: true, alpha: false });
+    transRenderer.setSize(360, 360, false);
+    transRenderer.setClearColor(CHROMA_KEY, 1);
+  }
+  return transRenderer;
+}
 
 function initThree() {
   threeScene = new THREE.Scene();
@@ -763,8 +814,11 @@ exportBtn.addEventListener('click', async () => {
   statusEl.textContent = 'initialising…';
   stopPreview();   // free the shared mesh/texture while we render export frames
 
+  const transparent = bgMode === 'transparent';
   try {
     if (!renderer) initThree();
+    const exportRenderer = transparent ? ensureTransRenderer() : renderer;
+    const exportCanvas = transparent ? transCanvas : glcanvas;
     const workerURL = await getWorkerURL();
 
     const fps = 24;
@@ -786,7 +840,8 @@ exportBtn.addEventListener('click', async () => {
       width: 360,
       height: 360,
       workerScript: workerURL,
-      dither: false
+      dither: false,
+      transparent: transparent ? CHROMA_KEY : null
     });
 
     statusEl.textContent = `rendering 0 / ${total} frames`;
@@ -799,8 +854,10 @@ exportBtn.addEventListener('click', async () => {
       // Drive the gif so gifCycles full plays span the export — it lands exactly
       // on a cycle boundary at the loop seam. (drawTextureFrame wraps the time.)
       drawTextureFrame(t * gifCycles * gifDuration);
-      renderer.render(threeScene, camera);
-      gif.addFrame(glcanvas, { copy: true, delay });
+      exportRenderer.render(threeScene, camera);
+      // dispose:2 (restore to background) keeps the moving shape from leaving a
+      // trail through the transparent areas of earlier frames.
+      gif.addFrame(exportCanvas, transparent ? { copy: true, delay, dispose: 2 } : { copy: true, delay });
       bar.style.width = ((i+1)/total * 50).toFixed(1) + '%';
       statusEl.textContent = `rendering ${i+1} / ${total} frames`;
       if (i % 6 === 0) await new Promise(r => setTimeout(r, 0));
@@ -823,7 +880,8 @@ exportBtn.addEventListener('click', async () => {
       progress.classList.remove('show');
       const kb = (blob.size/1024).toFixed(0);
       const loopNote = isGif ? ` · ${duration.toFixed(1)}s · ${gifCycles}× gif loop` : '';
-      statusEl.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${loopNote}`;
+      const bgNote = transparent ? ' · transparent' : '';
+      statusEl.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${bgNote}${loopNote}`;
       exportBtn.disabled = false;
       startPreview();   // resume the live spin
     });
