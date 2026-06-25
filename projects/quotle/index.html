@@ -95,6 +95,18 @@
   .meta .endline{ margin-top:12px; padding-top:12px; border-top:1px dashed var(--line); font-size:13.5px; color:var(--accent2) }
   .meta .endline b{ color:#fff }
 
+  /* Result / scorecard */
+  .result{
+    width:100%; max-width:760px; margin-top:12px; background:var(--panel);
+    border:1px solid var(--accent); border-radius:12px; padding:16px; text-align:center;
+    box-shadow:0 0 30px rgba(224,144,63,.12);
+  }
+  .result .cardHead{ font-size:15px; font-weight:700; letter-spacing:2px; color:var(--accent2); margin-bottom:12px }
+  .result .cardGrid{ font-size:22px; line-height:1.5; letter-spacing:2px; margin:6px 0 10px }
+  .result .cardLegend{ font-size:11px; color:var(--muted); margin-bottom:14px }
+  .result .cardBtns{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap }
+  .result .shareNote{ min-height:16px; margin-top:10px; font-size:12px; color:var(--good); font-weight:600 }
+
   /* How to play */
   details.help{ width:100%; max-width:760px; margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:4px 16px }
   details.help summary{ cursor:pointer; padding:10px 0; font-size:12px; letter-spacing:1px; color:var(--muted); font-weight:600; outline:none }
@@ -139,6 +151,18 @@
   <div class="endline" id="endline" style="display:none"></div>
 </div>
 
+<div class="result" id="result" style="display:none">
+  <div class="cardHead" id="cardHead"></div>
+  <div class="cardGrid" id="cardGrid"></div>
+  <div class="cardLegend">🟩 word solved&nbsp;&nbsp;🟨 letters found&nbsp;&nbsp;⬛ blank&nbsp;·&nbsp;one row per guess</div>
+  <div class="cardBtns">
+    <button class="btn primary" id="copyBtn">Copy result 📋</button>
+    <button class="btn" id="shareBtn" style="display:none">Share ↗</button>
+    <button class="btn" id="againBtn">Play another ↻</button>
+  </div>
+  <div class="shareNote" id="shareNote"></div>
+</div>
+
 <details class="help" id="help">
   <summary>HOW TO PLAY ▾</summary>
   <div class="body">
@@ -149,7 +173,8 @@
       <span class="swatch" style="background:var(--present)"></span> that letter <em>is somewhere in this word</em>, wrong spot — <strong>held in place</strong> as a clue;
       <span class="swatch" style="background:var(--absent)"></span> not in this word.</p>
     <p><strong>The twist:</strong> a yellow only tells you about <em>the word you guessed it in</em>. Finding an “e” in word 3 says nothing about “e” in any other word — every word keeps its own secrets.</p>
-    <p>Each wrong guess <strong>unlocks one more clue</strong> about the quote. Solve every word to win.</p>
+    <p>Greens stay <strong>locked in across guesses</strong>, so you just re-type the whole word each turn — the solved letters take care of themselves. Yellows are held in place as reminders.</p>
+    <p>Each wrong guess <strong>unlocks one more clue</strong> about the quote. Solve every word to win — then <strong>copy your scorecard</strong> and share it.</p>
   </div>
 </details>
 
@@ -219,11 +244,553 @@ const QUOTES = [
     "Two creatures appear — one delicate, one stinging.",
     "The speaker was an American boxer and activist.",
     "He called himself “The Greatest.”" ] },
+  { text:"The only thing we have to fear is fear itself", author:"Franklin D. Roosevelt", meta:[
+    "Category — Political oratory in a time of crisis.",
+    "From a 1933 inaugural address during the Depression.",
+    "One four-letter word appears in it three times.",
+    "The speaker was a U.S. president elected four times.",
+    "He guided America through the Depression and WWII." ] },
+  { text:"Houston we have a problem", author:"Apollo 13 (1970)", meta:[
+    "Category — Space history (and a hit film line).",
+    "Radioed to mission control in April 1970.",
+    "The first word names a city in Texas.",
+    "Said by the crew of a near-disastrous Moon mission.",
+    "The mission number was thirteen." ] },
+  { text:"Let them eat cake", author:"attributed to Marie Antoinette", meta:[
+    "Category — History; a symbol of royal indifference.",
+    "Linked to France on the eve of revolution, 1789.",
+    "There is no real evidence she ever said it.",
+    "Attributed to a queen of France.",
+    "Her husband was King Louis XVI." ] },
+  { text:"Frankly my dear I don't give a damn", author:"Gone with the Wind (1939)", meta:[
+    "Category — Film; a famous brush-off line.",
+    "From a 1939 epic set in the American South.",
+    "Spoken by Rhett Butler as he walks out.",
+    "It was scandalous for its mild profanity at the time.",
+    "The woman addressed is Scarlett O'Hara." ] },
+  { text:"I'll be back", author:"The Terminator (1984)", meta:[
+    "Category — Film; a three-word threat.",
+    "From a 1984 sci-fi action movie.",
+    "Delivered in a thick Austrian accent.",
+    "The speaker plays a killer cyborg from the future.",
+    "Said by Arnold Schwarzenegger's character." ] },
+  { text:"Here's looking at you kid", author:"Casablanca (1942)", meta:[
+    "Category — Film; a bittersweet toast.",
+    "From a 1942 romance set during WWII.",
+    "Said by Rick to Ilsa more than once.",
+    "Improvised by its star, Humphrey Bogart.",
+    "The film is named for a city in Morocco." ] },
+  { text:"Winter is coming", author:"Game of Thrones", meta:[
+    "Category — TV / fantasy fiction.",
+    "The motto of a noble house in a hit HBO series.",
+    "A warning that hard times always return.",
+    "House Stark's words, from a saga of warring kingdoms.",
+    "Based on George R.R. Martin's novels." ] },
+  { text:"With great power comes great responsibility", author:"Spider-Man", meta:[
+    "Category — Comics / superhero film.",
+    "Advice given to a young hero by his uncle.",
+    "One word appears twice, framing the lesson.",
+    "The hero gained his abilities from a spider bite.",
+    "Uncle Ben says it to Peter Parker." ] },
+  { text:"Why so serious", author:"The Dark Knight (2008)", meta:[
+    "Category — Film; a villain's taunt.",
+    "From a 2008 superhero blockbuster.",
+    "Asked while telling a gruesome story.",
+    "Spoken by a clown-faced agent of chaos.",
+    "The Joker says it, played by Heath Ledger." ] },
+  { text:"Life is like a box of chocolates", author:"Forrest Gump (1994)", meta:[
+    "Category — Film; folksy wisdom from a bench.",
+    "From a 1994 movie spanning decades of US history.",
+    "The point: you never know what you'll get.",
+    "The speaker is a kind-hearted man from Alabama.",
+    "Tom Hanks plays the title character, Forrest Gump." ] },
+  { text:"You shall not pass", author:"The Lord of the Rings", meta:[
+    "Category — Fantasy film; a defiant stand.",
+    "Shouted on a narrow bridge against a fire demon.",
+    "Buys time for a fellowship to escape.",
+    "The speaker is a grey-robed wizard.",
+    "Gandalf says it in The Fellowship of the Ring." ] },
+  { text:"To infinity and beyond", author:"Toy Story (1995)", meta:[
+    "Category — Animated film; a hero's catchphrase.",
+    "From the first fully computer-animated feature, 1995.",
+    "A boast about going impossibly far.",
+    "Said by a space-ranger action figure.",
+    "Buzz Lightyear's signature line." ] },
+  { text:"Hasta la vista baby", author:"Terminator 2 (1991)", meta:[
+    "Category — Film; a one-liner before a kill.",
+    "From a 1991 sci-fi action sequel.",
+    "Mixes Spanish farewell with English slang.",
+    "Said by a reprogrammed cyborg protector.",
+    "Arnold Schwarzenegger delivers it." ] },
+  { text:"Say hello to my little friend", author:"Scarface (1983)", meta:[
+    "Category — Film; a violent crime-drama line.",
+    "From a 1983 movie about a Miami drug lord.",
+    "The little friend is anything but little.",
+    "Spoken by a Cuban immigrant turned kingpin.",
+    "Al Pacino plays Tony Montana." ] },
+  { text:"You can't handle the truth", author:"A Few Good Men (1992)", meta:[
+    "Category — Film; a courtroom outburst.",
+    "From a 1992 military legal drama.",
+    "Yelled by a colonel under cross-examination.",
+    "The speaker is a hard-line Marine officer.",
+    "Jack Nicholson shouts it at Tom Cruise." ] },
+  { text:"Show me the money", author:"Jerry Maguire (1996)", meta:[
+    "Category — Film; a demand shouted down a phone.",
+    "From a 1996 movie about a sports agent.",
+    "An athlete makes his agent yell it back.",
+    "The speaker is a flashy football player.",
+    "Cuba Gooding Jr. says it to Tom Cruise." ] },
+  { text:"There's no place like home", author:"The Wizard of Oz (1939)", meta:[
+    "Category — Film; a wish whispered with closed eyes.",
+    "From a 1939 musical fantasy.",
+    "Repeated while clicking ruby slippers together.",
+    "The girl just wants to return to Kansas.",
+    "Dorothy says it to leave the Land of Oz." ] },
+  { text:"Carpe diem seize the day", author:"Horace / Dead Poets Society", meta:[
+    "Category — Inspirational; an old Latin maxim.",
+    "First written by a Roman poet around 23 BC.",
+    "Revived by a 1989 film about an English teacher.",
+    "It urges you to make the most of now.",
+    "Robin Williams' character repeats the Latin phrase." ] },
+  { text:"The early bird catches the worm", author:"English proverb", meta:[
+    "Category — Proverb about being prompt.",
+    "Recorded in English collections since the 1600s.",
+    "Its lesson: act first to win the reward.",
+    "A creature with feathers gets the prize.",
+    "The prize is a wriggling invertebrate." ] },
+  { text:"Actions speak louder than words", author:"English proverb", meta:[
+    "Category — Proverb about sincerity.",
+    "In common English use since the 1600s.",
+    "It contrasts doing with merely saying.",
+    "One key noun is the opposite of talk.",
+    "It says deeds outweigh speech." ] },
+  { text:"Honesty is the best policy", author:"English proverb", meta:[
+    "Category — Proverb about virtue.",
+    "Popular in English since at least the 1500s.",
+    "It frames truth-telling as good strategy.",
+    "The first word is a moral quality.",
+    "Often credited (loosely) to Benjamin Franklin." ] },
+  { text:"When in Rome do as the Romans do", author:"proverb (St Ambrose)", meta:[
+    "Category — Proverb about fitting in.",
+    "Traced back to advice from St Ambrose, 4th century.",
+    "It says adapt to local custom.",
+    "A famous Italian city is named twice (sort of).",
+    "The city is the capital of Italy." ] },
+  { text:"A picture is worth a thousand words", author:"early 20th-century adage", meta:[
+    "Category — Adage about visual communication.",
+    "Popularised by advertising in the early 1900s.",
+    "It values one image over much description.",
+    "The number in it is a large round figure.",
+    "That number is one thousand." ] },
+  { text:"The pen is mightier than the sword", author:"Edward Bulwer-Lytton", meta:[
+    "Category — Aphorism about words versus force.",
+    "Coined in an 1839 play about Cardinal Richelieu.",
+    "It pits writing against weaponry.",
+    "One tool writes; the other cuts.",
+    "The writing tool wins the comparison." ] },
+  { text:"Curiosity killed the cat", author:"English proverb", meta:[
+    "Category — Proverb; a gentle warning.",
+    "This wording dates from the late 1800s.",
+    "It cautions against prying too much.",
+    "A common house pet meets a bad end.",
+    "That pet famously has nine lives." ] },
+  { text:"Better late than never", author:"English proverb", meta:[
+    "Category — Proverb of reassurance.",
+    "Its idea goes back to Roman antiquity.",
+    "It forgives a delay.",
+    "It contrasts two timings.",
+    "Lateness beats total absence." ] },
+  { text:"Rome wasn't built in a day", author:"medieval French/English proverb", meta:[
+    "Category — Proverb about patience.",
+    "Recorded since the medieval period.",
+    "Great things take time, it says.",
+    "It names an ancient imperial capital.",
+    "The city is Rome." ] },
+  { text:"Where there's a will there's a way", author:"English proverb", meta:[
+    "Category — Proverb about determination.",
+    "Common in English since the early 1600s.",
+    "Strong intent finds a path, it claims.",
+    "Two short rhyming-ish nouns anchor it.",
+    "Those nouns are will and way." ] },
+  { text:"Fortune favours the bold", author:"Latin proverb (Virgil)", meta:[
+    "Category — Classical maxim about courage.",
+    "From Latin — “audentes Fortuna iuvat.”",
+    "Found in Virgil's Aeneid.",
+    "Luck rewards the daring, it says.",
+    "The first word means luck or fate." ] },
+  { text:"Time is money", author:"Benjamin Franklin", meta:[
+    "Category — Aphorism about productivity.",
+    "From a 1748 essay of advice to a young tradesman.",
+    "It equates hours with earnings.",
+    "The author was a U.S. founding father and inventor.",
+    "He also flew a kite in a thunderstorm." ] },
+  { text:"An apple a day keeps the doctor away", author:"English proverb", meta:[
+    "Category — Proverb about health.",
+    "This rhyme dates from 19th-century Wales.",
+    "A daily fruit, it claims, spares a visit.",
+    "The fruit is a common orchard one.",
+    "The fruit is an apple." ] },
+  { text:"The truth will set you free", author:"Gospel of John", meta:[
+    "Category — Scripture; a promise of liberation.",
+    "From the New Testament, John 8:32.",
+    "Knowing reality frees you, it says.",
+    "The speaker is a central religious figure.",
+    "The words are attributed to Jesus." ] },
+  { text:"Ask not what your country can do for you", author:"John F. Kennedy", meta:[
+    "Category — Political oratory; a call to service.",
+    "From a 1961 U.S. inaugural address.",
+    "It inverts a citizen's usual question.",
+    "The speaker was a young American president.",
+    "He was assassinated in Dallas in 1963." ] },
+  { text:"Tear down this wall", author:"Ronald Reagan", meta:[
+    "Category — Cold War political speech.",
+    "Spoken in 1987 at the Brandenburg Gate.",
+    "A challenge addressed to a Soviet leader.",
+    "The speaker was a former actor turned president.",
+    "He addressed Mikhail Gorbachev about Berlin." ] },
+  { text:"Give me liberty or give me death", author:"Patrick Henry", meta:[
+    "Category — Revolutionary oratory.",
+    "From a 1775 speech in colonial Virginia.",
+    "It demands freedom at any cost.",
+    "It helped rally American independence.",
+    "The orator was Patrick Henry." ] },
+  { text:"Speak softly and carry a big stick", author:"Theodore Roosevelt", meta:[
+    "Category — Diplomacy; a foreign-policy motto.",
+    "Used by a U.S. president around 1900.",
+    "It pairs calm words with hidden strength.",
+    "The speaker was a Rough Rider and trust-buster.",
+    "A teddy bear is named after him." ] },
+  { text:"The buck stops here", author:"Harry S. Truman", meta:[
+    "Category — Politics; a sign on a desk.",
+    "A U.S. president kept it on his Oval Office desk.",
+    "It means final responsibility lands with me.",
+    "He decided to use the atomic bomb in 1945.",
+    "The president was Harry Truman." ] },
+  { text:"We shall fight on the beaches", author:"Winston Churchill", meta:[
+    "Category — Wartime oratory; defiance.",
+    "From a 1940 speech after Dunkirk.",
+    "It vows resistance everywhere.",
+    "The speaker was a British prime minister.",
+    "He led Britain through World War II." ] },
+  { text:"Blood toil tears and sweat", author:"Winston Churchill", meta:[
+    "Category — Wartime oratory; a grim promise.",
+    "From a 1940 speech on becoming PM.",
+    "It offers hardship, not comfort.",
+    "Four bodily nouns are strung together.",
+    "Spoken by Britain's WWII prime minister." ] },
+  { text:"The unexamined life is not worth living", author:"Socrates", meta:[
+    "Category — Philosophy on self-reflection.",
+    "Said at the speaker's trial in 399 BC.",
+    "It prizes questioning one's own life.",
+    "The speaker was an ancient Athenian philosopher.",
+    "He was sentenced to drink hemlock." ] },
+  { text:"Know thyself", author:"Ancient Greek maxim", meta:[
+    "Category — Classical wisdom; two words.",
+    "Inscribed at the Temple of Apollo at Delphi.",
+    "It commands self-knowledge.",
+    "Linked to ancient Greek philosophy.",
+    "Often associated with Socrates." ] },
+  { text:"God does not play dice", author:"Albert Einstein", meta:[
+    "Category — Science; a remark on quantum theory.",
+    "From 1920s letters about physics.",
+    "It rejects pure randomness in nature.",
+    "The speaker reshaped our idea of space and time.",
+    "He devised the theory of relativity." ] },
+  { text:"Imagination is more important than knowledge", author:"Albert Einstein", meta:[
+    "Category — On creativity in science.",
+    "From a 1929 interview.",
+    "It ranks vision above mere facts.",
+    "The speaker won a Nobel Prize in Physics.",
+    "His famous equation links energy and mass." ] },
+  { text:"That which does not kill us makes us stronger", author:"Friedrich Nietzsche", meta:[
+    "Category — Philosophy on adversity.",
+    "From an 1888 book of aphorisms.",
+    "Suffering can toughen you, it suggests.",
+    "The speaker was a German philosopher.",
+    "He also wrote that 'God is dead.'" ] },
+  { text:"God is dead", author:"Friedrich Nietzsche", meta:[
+    "Category — Philosophy; a provocative claim.",
+    "From an 1882 work, The Gay Science.",
+    "It diagnoses a loss of religious certainty.",
+    "The speaker was a 19th-century German thinker.",
+    "He also wrote of the 'will to power.'" ] },
+  { text:"Hell is other people", author:"Jean-Paul Sartre", meta:[
+    "Category — Existentialist philosophy.",
+    "From a 1944 play, No Exit.",
+    "It locates torment in being seen by others.",
+    "The author was a French existentialist.",
+    "He declined the 1964 Nobel Prize in Literature." ] },
+  { text:"The medium is the message", author:"Marshall McLuhan", meta:[
+    "Category — Media theory; a paradox.",
+    "Coined in a 1964 book on media.",
+    "The channel shapes us more than the content.",
+    "The author was a Canadian media theorist.",
+    "He foresaw the 'global village.'" ] },
+  { text:"Big Brother is watching you", author:"George Orwell — 1984", meta:[
+    "Category — Dystopian fiction; surveillance.",
+    "From a 1949 novel about a total state.",
+    "A slogan on posters everywhere in the story.",
+    "The author also wrote a farmyard fable.",
+    "The novel is titled 1984." ] },
+  { text:"All animals are equal", author:"George Orwell — Animal Farm", meta:[
+    "Category — Political satire / fable.",
+    "From a 1945 allegory of revolution.",
+    "Its twist: 'some are more equal than others.'",
+    "Set on a farm run by its livestock.",
+    "The book is Animal Farm." ] },
+  { text:"It was the best of times it was the worst of times", author:"Charles Dickens", meta:[
+    "Category — Literature; a famous opening line.",
+    "Begins an 1859 novel of the French Revolution.",
+    "It balances opposites in one breath.",
+    "The author was a Victorian English novelist.",
+    "The book is A Tale of Two Cities." ] },
+  { text:"Call me Ishmael", author:"Herman Melville — Moby-Dick", meta:[
+    "Category — Literature; an iconic first line.",
+    "Opens an 1851 novel about a whale hunt.",
+    "Just three words introduce the narrator.",
+    "The author was a 19th-century American writer.",
+    "The white whale is named Moby-Dick." ] },
+  { text:"All happy families are alike", author:"Leo Tolstoy — Anna Karenina", meta:[
+    "Category — Literature; a novel's opening.",
+    "Begins an 1877 Russian novel.",
+    "Each unhappy family differs, it adds.",
+    "The author was a towering Russian novelist.",
+    "The heroine's name titles the book: Anna Karenina." ] },
+  { text:"Not all those who wander are lost", author:"J.R.R. Tolkien", meta:[
+    "Category — Fantasy verse; a riddle of a poem.",
+    "From The Lord of the Rings, published 1954.",
+    "It defends purposeful wandering.",
+    "It describes a hidden king, Aragorn.",
+    "The author also wrote The Hobbit." ] },
+  { text:"All the world's a stage", author:"William Shakespeare — As You Like It", meta:[
+    "Category — Theatre; a famous monologue's start.",
+    "From a comedy written around 1599.",
+    "It compares life to a play in seven acts.",
+    "The author was an English playwright.",
+    "The speech lists the 'seven ages of man.'" ] },
+  { text:"A rose by any other name would smell as sweet", author:"William Shakespeare — Romeo and Juliet", meta:[
+    "Category — Theatre; a line about names.",
+    "From a 1590s tragedy of doomed lovers.",
+    "A name doesn't change a thing's nature, it says.",
+    "Spoken from a balcony by a young heroine.",
+    "Juliet says it of Romeo's surname." ] },
+  { text:"Et tu Brute", author:"William Shakespeare — Julius Caesar", meta:[
+    "Category — Theatre; a cry of betrayal (in Latin).",
+    "From a play first staged around 1599.",
+    "Gasped by a dying Roman ruler.",
+    "It means roughly 'you too, Brutus?'",
+    "The dying man is Julius Caesar." ] },
+  { text:"Now is the winter of our discontent", author:"William Shakespeare — Richard III", meta:[
+    "Category — Theatre; a play's opening line.",
+    "From a history play of about 1593.",
+    "A scheming hunchback begins his tale.",
+    "The season named is the coldest one.",
+    "The speaker becomes King Richard III." ] },
+  { text:"Brevity is the soul of wit", author:"William Shakespeare — Hamlet", meta:[
+    "Category — Theatre; advice on speaking.",
+    "From a tragedy written around 1600.",
+    "It praises keeping things short.",
+    "Spoken, ironically, by the wordy Polonius.",
+    "The play is Hamlet." ] },
+  { text:"Live long and prosper", author:"Star Trek", meta:[
+    "Category — TV / sci-fi; a blessing with a hand sign.",
+    "From a 1960s space-exploration series.",
+    "Offered as a pointed-eared farewell.",
+    "Said by a logical alien science officer.",
+    "Mr. Spock raises a split-finger salute." ] },
+  { text:"Resistance is futile", author:"Star Trek", meta:[
+    "Category — TV / sci-fi; a chilling threat.",
+    "Spoken by a hive-mind cybernetic race.",
+    "It promises you will be assimilated.",
+    "From the same universe as the starship Enterprise.",
+    "The collective is called the Borg." ] },
+  { text:"Space the final frontier", author:"Star Trek", meta:[
+    "Category — TV / sci-fi; an opening narration.",
+    "From a series first aired in 1966.",
+    "It frames the cosmos as uncharted territory.",
+    "Followed by 'these are the voyages...'",
+    "The show is Star Trek." ] },
+  { text:"Just do it", author:"Nike", meta:[
+    "Category — Advertising slogan.",
+    "Launched in a 1988 campaign.",
+    "Three blunt words urging action.",
+    "It belongs to a sportswear giant.",
+    "The brand is named after a Greek goddess: Nike." ] },
+  { text:"Think different", author:"Apple", meta:[
+    "Category — Advertising slogan.",
+    "From a 1997 campaign honouring rebels.",
+    "Two words, deliberately ungrammatical.",
+    "It belongs to a tech company with a fruit logo.",
+    "The brand is Apple." ] },
+  { text:"Survival of the fittest", author:"Herbert Spencer", meta:[
+    "Category — Science / philosophy of evolution.",
+    "Coined in 1864 after reading Darwin.",
+    "It describes who endures in nature.",
+    "Later adopted into evolutionary theory.",
+    "Spencer coined it; Darwin popularised it." ] },
+  { text:"Eureka I have found it", author:"Archimedes", meta:[
+    "Category — Science; a cry of discovery.",
+    "Legend says it was shouted from a bathtub.",
+    "It greeted a breakthrough about volume.",
+    "The thinker was an ancient Greek of Syracuse.",
+    "His name is Archimedes." ] },
+  { text:"The die is cast", author:"Julius Caesar", meta:[
+    "Category — History; a point of no return.",
+    "Said while crossing the Rubicon in 49 BC.",
+    "It means the risky choice is now made.",
+    "The speaker was a Roman general.",
+    "He went on to rule as dictator: Caesar." ] },
+  { text:"Power tends to corrupt", author:"Lord Acton", meta:[
+    "Category — Politics; a warning about authority.",
+    "From an 1887 letter.",
+    "Its sequel: 'absolute power corrupts absolutely.'",
+    "The author was a British historian and baron.",
+    "He is known as Lord Acton." ] },
+  { text:"The journey of a thousand miles begins with a single step", author:"Lao Tzu", meta:[
+    "Category — Eastern philosophy; on beginnings.",
+    "From an ancient Chinese text, the Tao Te Ching.",
+    "Big goals start small, it teaches.",
+    "Credited to a legendary Chinese sage.",
+    "The sage is Lao Tzu." ] },
+  { text:"A penny saved is a penny earned", author:"Benjamin Franklin", meta:[
+    "Category — Proverb on thrift.",
+    "Popularised in Poor Richard's Almanack, 1700s.",
+    "Saving equals earning, it argues.",
+    "The author was an American polymath.",
+    "His face appears on the $100 bill." ] },
+  { text:"Keep calm and carry on", author:"British wartime poster", meta:[
+    "Category — Slogan; stiff-upper-lip morale.",
+    "Printed by the UK government in 1939.",
+    "Barely used then; a hit decades later.",
+    "It tells you to stay composed and continue.",
+    "Topped by a small royal crown image." ] },
+  { text:"Workers of the world unite", author:"Karl Marx", meta:[
+    "Category — Politics; a rallying cry.",
+    "Closes an 1848 pamphlet.",
+    "It calls labourers to common cause.",
+    "Co-written with Friedrich Engels.",
+    "From The Communist Manifesto by Marx." ] },
+  { text:"I shall return", author:"Douglas MacArthur", meta:[
+    "Category — Military; a vow of comeback.",
+    "Made in 1942 on leaving the Philippines.",
+    "Three words promising a comeback.",
+    "The speaker was an American five-star general.",
+    "His name is Douglas MacArthur." ] },
+  { text:"The best way to predict the future is to invent it", author:"Alan Kay", meta:[
+    "Category — Technology; a designer's mantra.",
+    "Said at a 1971 computing meeting.",
+    "Don't forecast — build it, it says.",
+    "The speaker pioneered personal computing ideas.",
+    "Alan Kay helped imagine the laptop and GUI." ] },
+  { text:"Genius is one percent inspiration", author:"Thomas Edison", meta:[
+    "Category — On hard work versus talent.",
+    "Attributed to the inventor around 1900.",
+    "The rest is 'ninety-nine percent perspiration.'",
+    "The speaker held over a thousand patents.",
+    "He is credited with the light bulb: Edison." ] },
+  { text:"Do or do not there is no try", author:"Yoda — Star Wars", meta:[
+    "Category — Film; mentor's training advice.",
+    "From The Empire Strikes Back, 1980.",
+    "It rejects half-hearted effort.",
+    "Spoken in odd, inverted grammar by a small sage.",
+    "The green Jedi master is Yoda." ] },
+  { text:"I'm gonna make him an offer he can't refuse", author:"The Godfather (1972)", meta:[
+    "Category — Film; a sinister promise.",
+    "From a 1972 mob epic.",
+    "The 'offer' is really a threat.",
+    "Said by a soft-spoken Mafia patriarch.",
+    "Marlon Brando plays Vito Corleone." ] },
+  { text:"Keep your friends close and your enemies closer", author:"The Godfather Part II (1974)", meta:[
+    "Category — Film; cynical strategy.",
+    "From a 1974 crime sequel.",
+    "It advises watching your rivals nearest of all.",
+    "Said by a young Mafia don in flashbacks' heir.",
+    "Al Pacino plays Michael Corleone." ] },
+  { text:"Bond James Bond", author:"James Bond films", meta:[
+    "Category — Film; a spy's self-introduction.",
+    "A staple since the first 007 movie in 1962.",
+    "The surname is stated, then the full name.",
+    "The character is a British secret agent.",
+    "His code number is 007." ] },
+  { text:"My precious", author:"The Lord of the Rings", meta:[
+    "Category — Fantasy film; an obsessive coo.",
+    "Spoken about a magical golden ring.",
+    "Said by a creature ruined by that ring.",
+    "The wretched speaker was once a hobbit-like being.",
+    "His name is Gollum (Sméagol)." ] },
+  { text:"Nobody puts Baby in a corner", author:"Dirty Dancing (1987)", meta:[
+    "Category — Film; a defiant romantic line.",
+    "From a 1987 movie set at a summer resort.",
+    "'Baby' is the heroine's nickname.",
+    "Said by her dance instructor before the finale.",
+    "Patrick Swayze delivers it." ] },
+  { text:"ET phone home", author:"E.T. the Extra-Terrestrial (1982)", meta:[
+    "Category — Film; an alien's plea.",
+    "From a 1982 Spielberg movie.",
+    "A stranded visitor wants to call his planet.",
+    "He befriends a boy named Elliott.",
+    "The title character is E.T." ] },
+  { text:"Here's Johnny", author:"The Shining (1980)", meta:[
+    "Category — Film; a terrifying announcement.",
+    "From a 1980 horror movie in a haunted hotel.",
+    "Yelled through a hole chopped in a door.",
+    "Improvised, echoing a TV show intro.",
+    "Jack Nicholson screams it." ] },
+  { text:"I see dead people", author:"The Sixth Sense (1999)", meta:[
+    "Category — Film; a chilling confession.",
+    "From a 1999 supernatural thriller.",
+    "Whispered by a frightened young boy.",
+    "The film is famous for its twist ending.",
+    "Directed by M. Night Shyamalan." ] },
+  { text:"The truth is out there", author:"The X-Files", meta:[
+    "Category — TV; a show's tagline.",
+    "From a 1990s sci-fi series about FBI agents.",
+    "It hints at hidden conspiracies and aliens.",
+    "Agents Mulder and Scully chase it.",
+    "The show is The X-Files." ] },
+  { text:"Greed is good", author:"Wall Street (1987)", meta:[
+    "Category — Film; a corporate creed.",
+    "From a 1987 movie about finance.",
+    "A ruthless trader praises self-interest.",
+    "The speaker is a slick corporate raider.",
+    "Michael Douglas plays Gordon Gekko." ] },
+  { text:"You talking to me", author:"Taxi Driver (1976)", meta:[
+    "Category — Film; a mirror monologue.",
+    "From a 1976 movie about a lonely cabbie.",
+    "Improvised, addressed to the speaker's reflection.",
+    "The character is a disturbed Vietnam veteran.",
+    "Robert De Niro plays Travis Bickle." ] },
+  { text:"Go ahead make my day", author:"Sudden Impact (1983)", meta:[
+    "Category — Film; a cop's dare.",
+    "From a 1983 crime sequel.",
+    "It taunts a criminal to give an excuse.",
+    "Said by a tough San Francisco detective.",
+    "Clint Eastwood plays Dirty Harry." ] },
+  { text:"Life finds a way", author:"Jurassic Park (1993)", meta:[
+    "Category — Film; a warning about nature.",
+    "From a 1993 movie about cloned dinosaurs.",
+    "It predicts that control will fail.",
+    "Said by a chaos-theory mathematician.",
+    "Jeff Goldblum plays Dr. Ian Malcolm." ] },
+  { text:"Roads where we're going we don't need roads", author:"Back to the Future (1985)", meta:[
+    "Category — Film; a line before time travel.",
+    "From a 1985 sci-fi comedy.",
+    "Said as a flying car powers up.",
+    "Spoken by an eccentric inventor.",
+    "Doc Brown says it about the DeLorean." ] },
+  { text:"Great Scott", author:"Back to the Future (1985)", meta:[
+    "Category — Film; an exclamation of shock.",
+    "A catchphrase from a 1985 time-travel comedy.",
+    "Two words blurted at every surprise.",
+    "Said by a wild-haired scientist.",
+    "Doc Brown, played by Christopher Lloyd." ] },
 ];
 
 const MAX = 5;
+const SITE_URL = "https://weesechedge.github.io/Slop-Bucket/projects/quotle/";
 let boxes = [], words = [], groups = [], cursor = 0;
 let guessesUsed = 0, gameOver = false, lastSig = "", current = null;
+let history = [], currentIndex = 0, lastWon = false;
 
 const $board = document.getElementById('board');
 const $msg = document.getElementById('message');
@@ -232,13 +799,19 @@ const $endline = document.getElementById('endline');
 const $left = document.getElementById('left');
 const $guesses = document.getElementById('guesses');
 const hidden = document.getElementById('hidden');
+const $result = document.getElementById('result');
+const $cardHead = document.getElementById('cardHead');
+const $cardGrid = document.getElementById('cardGrid');
+const $shareNote = document.getElementById('shareNote');
+const $copyBtn = document.getElementById('copyBtn');
+const $shareBtn = document.getElementById('shareBtn');
 
-function pickQuote(force){
-  if(force!=null) return QUOTES[force%QUOTES.length];
-  // daily-ish: seed by date, but shuffle button gives random
+function pickIndex(force){
+  if(force!=null) return ((force % QUOTES.length) + QUOTES.length) % QUOTES.length;
+  // daily-ish: seed by date, but the shuffle button passes a random index
   const d = new Date();
   const seed = d.getFullYear()*1000 + (d.getMonth()+1)*50 + d.getDate();
-  return QUOTES[seed % QUOTES.length];
+  return seed % QUOTES.length;
 }
 
 function tokenize(text){
@@ -302,15 +875,14 @@ function render(){
 function focusHidden(){ try{ hidden.focus({preventScroll:true}); }catch(e){ hidden.focus(); } }
 
 function typeLetter(ch){
-  if(gameOver) return;
-  while(cursor < boxes.length && boxes[cursor].locked) cursor++;
-  if(cursor >= boxes.length) return;
+  if(gameOver || cursor >= boxes.length) return;
+  // A locked (already-correct) box absorbs the keystroke and advances, so re-typing a
+  // whole word stays aligned even when some of its letters are already solved.
+  if(boxes[cursor].locked){ cursor++; render(); return; }
   const b = boxes[cursor];
   b.typed = ch.toUpperCase();
   b.status = null;
-  let n = cursor + 1;
-  while(n < boxes.length && boxes[n].locked) n++;
-  cursor = n;
+  cursor++;
   render();
 }
 
@@ -380,6 +952,12 @@ function submitGuess(){
   render();
   popped.forEach((b,k)=> setTimeout(()=>{ b.el.classList.add('pop'); setTimeout(()=>b.el.classList.remove('pop'),260); }, k*22));
 
+  // record this guess for the shareable scorecard: 2=word solved, 1=letters found, 0=blank
+  history.push(words.map(w =>
+    w.boxes.every(b => b.status==='correct') ? 2
+    : w.boxes.some(b => b.status==='correct' || b.status==='present') ? 1
+    : 0));
+
   const win = boxes.every(b => b.status==='correct');
   if(win){ endGame(true); return; }
 
@@ -387,8 +965,9 @@ function submitGuess(){
   revealMeta(guessesUsed);
   if(guessesUsed >= MAX){ endGame(false); return; }
 
-  // helpful: park cursor on first open box
-  cursor = boxes.findIndex(b=>!b.locked); if(cursor<0) cursor=boxes.length;
+  // reset to the start so you can simply re-type the whole quote (locked letters
+  // absorb their keystrokes and realign), or click a single word to fix just that one.
+  cursor = 0;
   render(); buildGuessPips();
   setMsg('hint', clueRevealedText(guessesUsed) + " — " + (MAX-guessesUsed) + " left.");
 }
@@ -430,22 +1009,58 @@ function endGame(won){
   renderMeta(current.meta.length); // unlock all clues at the end
   $endline.style.display = 'block';
   if(won){
-    const w = guessesUsed;
-    setMsg('good', w===0 ? '✦ Solved on the first guess!' : '✦ Solved with ' + w + ' wrong guess' + (w===1?'':'es') + '!');
+    const n = history.length;
+    setMsg('good', n===1 ? '✦ Solved on the first guess!' : '✦ Solved in ' + n + ' guesses!');
     $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
   } else {
     setMsg('bad', 'Out of guesses — the quote was:');
     $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
   }
   buildGuessPips();
+  showScorecard(won);
+}
+
+/* ---- shareable scorecard ---- */
+const TILES = ['⬛','🟨','🟩'];
+function scoreLabel(won){ return (won ? history.length : 'X') + '/' + MAX; }
+function scorecardText(won){
+  const head = 'Quotle #' + (currentIndex+1) + '  ' + scoreLabel(won);
+  const grid = history.map(r => r.map(v => TILES[v]).join('')).join('\n');
+  return head + '\n\n' + grid + '\n\n' + SITE_URL;
+}
+function showScorecard(won){
+  lastWon = won;
+  const grid = history.map(r => r.map(v => TILES[v]).join('')).join('<br>');
+  $cardHead.textContent = 'QUOTLE #' + (currentIndex+1) + ' · ' + scoreLabel(won) + (won ? ' ✓' : '');
+  $cardGrid.innerHTML = grid;
+  $shareNote.textContent = '';
+  $result.style.display = 'block';
+  if(navigator.share) $shareBtn.style.display = '';
+  $result.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+async function copyResult(won){
+  const text = scorecardText(won);
+  try{
+    await navigator.clipboard.writeText(text);
+    $shareNote.textContent = 'Copied to clipboard!';
+  }catch(e){
+    // fallback: temporary textarea
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); $shareNote.textContent = 'Copied to clipboard!'; }
+    catch(_){ $shareNote.textContent = 'Copy failed — select and copy manually.'; }
+    document.body.removeChild(ta);
+  }
 }
 
 function newGame(force){
-  current = pickQuote(force);
+  currentIndex = pickIndex(force);
+  current = QUOTES[currentIndex];
   tokenize(current.text);
   buildBoard();
-  cursor = 0; guessesUsed = 0; gameOver = false; lastSig = "";
+  cursor = 0; guessesUsed = 0; gameOver = false; lastSig = ""; history = [];
   $endline.style.display = 'none'; $endline.innerHTML='';
+  $result.style.display = 'none';
   renderMeta(0); buildGuessPips(); render();
   setMsg('hint', 'Type letters to fill the boxes — space jumps words, Enter guesses.');
   focusHidden();
@@ -477,10 +1092,16 @@ document.addEventListener('keydown', e=>{
 $board.addEventListener('click', focusHidden);
 document.body.addEventListener('click', e=>{ if(!e.target.closest('button')&&!e.target.closest('details')) focusHidden(); });
 
-document.getElementById('newBtn').addEventListener('click', ()=>{
-  // random different quote
-  let idx; do { idx = Math.floor(Math.random()*QUOTES.length); } while(QUOTES.length>1 && QUOTES[idx]===current);
+function shuffleGame(){
+  let idx; do { idx = Math.floor(Math.random()*QUOTES.length); } while(QUOTES.length>1 && idx===currentIndex);
   newGame(idx);
+}
+document.getElementById('newBtn').addEventListener('click', shuffleGame);
+document.getElementById('againBtn').addEventListener('click', shuffleGame);
+$copyBtn.addEventListener('click', ()=> copyResult(lastWon));
+$shareBtn.addEventListener('click', async ()=>{
+  try{ await navigator.share({ title:'Quotle', text: scorecardText(lastWon) }); }
+  catch(e){ /* user cancelled */ }
 });
 document.getElementById('howBtn').addEventListener('click', ()=>{
   const h = document.getElementById('help'); h.open = !h.open; if(h.open) h.scrollIntoView({behavior:'smooth',block:'nearest'});

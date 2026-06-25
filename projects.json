@@ -3,8 +3,8 @@
     {
       "slug": "quotle",
       "title": "Quotle",
-      "description": "A Wordle for famous quotes. Every letter is a box; type a single word, a phrase, or the whole quote and hit enter. Colours work per word — a yellow only tells you a letter is in that word, never across the whole quote — and each wrong guess unlocks another bite of metadata. Five tries to name the quote.",
-      "tags": ["game", "wordle", "word-game", "quotes", "puzzle", "trivia", "interactive", "browser"],
+      "description": "A Wordle for famous quotes — 100 of them. Every letter is a box; type a single word, a phrase, or the whole quote and hit enter. Colours work per word — a yellow only tells you a letter is in that word, never across the whole quote — and each wrong guess unlocks another bite of metadata. Five tries to name the quote, then copy a Wordle-style emoji scorecard to share.",
+      "tags": ["game", "wordle", "word-game", "quotes", "puzzle", "trivia", "shareable", "interactive", "browser"],
       "date": "2026-06-25",
       "path": "projects/quotle/",
       "pages": []
