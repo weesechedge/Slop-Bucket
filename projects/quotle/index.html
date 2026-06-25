@@ -48,27 +48,29 @@
 
   .stage{ width:100%; max-width:760px; display:flex; flex-direction:column; align-items:center }
 
-  /* Board */
+  /* Board — every guess is one full-width line of the whole quote; lines stack downward */
+  :root{ --cell:34px; --wg:20px; --ig:3px; --cf:20px; }
   #board{
     width:100%; background:var(--panel); border:1px solid var(--line);
-    border-radius:14px; padding:18px 16px; margin:12px 0;
-    display:flex; flex-wrap:wrap; gap:10px 14px; justify-content:center; cursor:text;
-    min-height:90px;
+    border-radius:14px; padding:16px 14px; margin:12px 0;
+    overflow-x:auto; cursor:text; min-height:80px;
   }
-  .word{ display:flex; gap:5px; align-items:center }
-  .ichar{ color:var(--dim); font-size:18px; align-self:center; padding:0 1px }
-  .sep{ color:var(--dim); align-self:center; font-size:20px; padding:0 2px; user-select:none }
-  .sep.space{ width:4px }
+  #rows{ display:flex; flex-direction:column; gap:7px; width:max-content; min-width:100%; margin:0 auto; box-sizing:border-box }
+  .row{ display:flex; gap:var(--ig); align-items:center; justify-content:center }
+  .row.future{ opacity:.32 }
+  .word{ display:flex; gap:var(--ig); align-items:center }
+  .ichar{ color:var(--dim); font-size:var(--cf); align-self:center; width:calc(var(--cell)*0.34); text-align:center }
+  .sep{ width:var(--wg) }
 
   .cell{
-    width:38px; height:46px; border:2px solid var(--boxline); border-radius:6px;
+    width:var(--cell); height:calc(var(--cell)*1.16); flex:0 0 auto;
+    border:2px solid var(--boxline); border-radius:5px;
     background:var(--box); display:flex; align-items:center; justify-content:center;
-    font-size:22px; font-weight:600; text-transform:uppercase; color:var(--ink);
+    font-size:var(--cf); font-weight:600; text-transform:uppercase; color:var(--ink);
     transition:background-color .25s, border-color .2s, color .2s, transform .12s;
-    position:relative;
   }
   .cell.filled{ border-color:#5a626f }
-  .cell.active{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(224,144,63,.25) inset }
+  .cell.active{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(224,144,63,.3) inset }
   .cell.correct{ background:var(--correct); border-color:var(--correct); color:#fff }
   .cell.present{ background:var(--present); border-color:var(--present); color:#1c1a12 }
   .cell.absent{ background:var(--absent); border-color:var(--absent); color:var(--muted) }
@@ -102,7 +104,8 @@
     box-shadow:0 0 30px rgba(224,144,63,.12);
   }
   .result .cardHead{ font-size:15px; font-weight:700; letter-spacing:2px; color:var(--accent2); margin-bottom:12px }
-  .result .cardGrid{ font-size:22px; line-height:1.5; letter-spacing:2px; margin:6px 0 10px }
+  .result .cardGrid{ font-size:clamp(11px,3.2vw,18px); line-height:1.55; margin:6px 0 10px; overflow-x:auto; white-space:nowrap; font-family:ui-monospace,monospace }
+  .result .cardGrid > div{ width:max-content; margin:0 auto }
   .result .cardLegend{ font-size:11px; color:var(--muted); margin-bottom:14px }
   .result .cardBtns{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap }
   .result .shareNote{ min-height:16px; margin-top:10px; font-size:12px; color:var(--good); font-weight:600 }
@@ -118,11 +121,9 @@
   .hiddenInput{ position:fixed; top:-100px; left:0; opacity:0; height:1px; width:1px }
   footer{ color:var(--dim); font-size:11px; margin-top:26px; text-align:center }
   @media (max-width:560px){
-    .cell{ width:30px; height:38px; font-size:18px; border-radius:5px }
-    #board{ gap:8px 10px; padding:14px 10px }
-    .word{ gap:4px } header.title h1{ font-size:28px; letter-spacing:4px }
+    #board{ padding:12px 8px }
+    header.title h1{ font-size:28px; letter-spacing:4px }
   }
-  @media (max-width:380px){ .cell{ width:25px; height:33px; font-size:15px } }
 </style>
 </head>
 <body>
@@ -141,8 +142,8 @@
 <div class="guesses" id="guesses"><span class="lbl">guesses left: <b id="left">5</b></span></div>
 
 <div class="stage">
-  <div id="message" class="hint">Type letters to fill the boxes — Enter to guess.</div>
-  <div id="board" tabindex="0"></div>
+  <div id="message" class="hint">Type the quote into the boxes — Enter to guess.</div>
+  <div id="board" tabindex="0"><div id="rows"></div></div>
 </div>
 
 <div class="meta">
@@ -154,7 +155,7 @@
 <div class="result" id="result" style="display:none">
   <div class="cardHead" id="cardHead"></div>
   <div class="cardGrid" id="cardGrid"></div>
-  <div class="cardLegend">🟩 word solved&nbsp;&nbsp;🟨 letters found&nbsp;&nbsp;⬛ blank&nbsp;·&nbsp;one row per guess</div>
+  <div class="cardLegend">🟩 right spot&nbsp;&nbsp;🟨 in the word&nbsp;&nbsp;⬛ not in word&nbsp;&nbsp;⬜ left blank&nbsp;·&nbsp;one line per guess</div>
   <div class="cardBtns">
     <button class="btn primary" id="copyBtn">Copy result 📋</button>
     <button class="btn" id="shareBtn" style="display:none">Share ↗</button>
@@ -166,15 +167,14 @@
 <details class="help" id="help">
   <summary>HOW TO PLAY ▾</summary>
   <div class="body">
-    <p>A famous quote is hidden. Every <strong>letter</strong> is a box; gaps between words and punctuation are shown for you. You get <strong>5 guesses</strong>.</p>
-    <p><strong>Typing:</strong> just type. Letters flow across the boxes; press <strong>space</strong> to jump to the next word, <strong>Backspace</strong> to delete, click a box to move there. You can type a whole word, a single word in one spot, or the entire quote — then hit <strong>Enter</strong>.</p>
-    <p><strong>Colours</strong> (Wordle-style, but <strong>per word</strong>):
-      <span class="swatch" style="background:var(--correct)"></span> right letter, right spot — <strong>locked in</strong>;
-      <span class="swatch" style="background:var(--present)"></span> that letter <em>is somewhere in this word</em>, wrong spot — <strong>held in place</strong> as a clue;
+    <p>A famous quote is hidden. The whole quote sits on <strong>one line</strong> of boxes — one box per letter, with spaces between words. You get <strong>5 guesses</strong>.</p>
+    <p><strong>Each guess is a fresh line.</strong> Type your attempt at the quote — press <strong>space</strong> to jump to the next word, <strong>Backspace</strong> to delete, click a box to move there — then hit <strong>Enter</strong>. Your line is colour-graded and a new blank line appears below, so every guess <strong>stacks up</strong> and you can read each column to see what you’ve already nailed.</p>
+    <p><strong>Colours</strong> (Wordle-style, but graded <strong>per word</strong>):
+      <span class="swatch" style="background:var(--correct)"></span> right letter, right spot;
+      <span class="swatch" style="background:var(--present)"></span> that letter <em>is somewhere in this word</em>, wrong spot;
       <span class="swatch" style="background:var(--absent)"></span> not in this word.</p>
     <p><strong>The twist:</strong> a yellow only tells you about <em>the word you guessed it in</em>. Finding an “e” in word 3 says nothing about “e” in any other word — every word keeps its own secrets.</p>
-    <p>Greens stay <strong>locked in across guesses</strong>, so you just re-type the whole word each turn — the solved letters take care of themselves. Yellows are held in place as reminders.</p>
-    <p>Each wrong guess <strong>unlocks one more clue</strong> about the quote. Solve every word to win — then <strong>copy your scorecard</strong> and share it.</p>
+    <p>Each wrong guess <strong>unlocks one more clue</strong> about the quote. Get the whole quote right on a single line to win — then <strong>copy your scorecard</strong> (one emoji per letter) and share it.</p>
   </div>
 </details>
 
@@ -788,191 +788,193 @@ const QUOTES = [
 
 const MAX = 5;
 const SITE_URL = "https://weesechedge.github.io/Slop-Bucket/projects/quotle/";
-let boxes = [], words = [], groups = [], cursor = 0;
-let guessesUsed = 0, gameOver = false, lastSig = "", current = null;
-let history = [], currentIndex = 0, lastWon = false;
 
-const $board = document.getElementById('board');
-const $msg = document.getElementById('message');
+// quote model
+let words = [];      // words[w] = array of box-indices belonging to that word
+let boxes = [];      // boxes[i] = { answer, wi }   (wi = word index)
+let units = [];      // ordered render units: {t:'box',bi} | {t:'ichar',ch} | {t:'gap'} | {t:'punct',ch}
+let current = null, currentIndex = 0;
+
+// play state — every guess is its own line in a stacked grid
+let rowData = [];    // rowData[r][i] = { typed, status }  (status: null|'correct'|'present'|'absent'|'blank'|'reveal')
+let cells2d = [];    // cells2d[r][i] = DOM cell
+let attempts = 0, activeRow = 0, cursor = 0, gameOver = false, won = false;
+let history = [], lastWon = false;
+
+const $board    = document.getElementById('board');
+const rowsEl    = document.getElementById('rows');
+const $msg      = document.getElementById('message');
 const $metaList = document.getElementById('metaList');
-const $endline = document.getElementById('endline');
-const $left = document.getElementById('left');
-const $guesses = document.getElementById('guesses');
-const hidden = document.getElementById('hidden');
-const $result = document.getElementById('result');
+const $endline  = document.getElementById('endline');
+const $guesses  = document.getElementById('guesses');
+const hidden    = document.getElementById('hidden');
+const $result   = document.getElementById('result');
 const $cardHead = document.getElementById('cardHead');
 const $cardGrid = document.getElementById('cardGrid');
-const $shareNote = document.getElementById('shareNote');
-const $copyBtn = document.getElementById('copyBtn');
+const $shareNote= document.getElementById('shareNote');
+const $copyBtn  = document.getElementById('copyBtn');
 const $shareBtn = document.getElementById('shareBtn');
 
 function pickIndex(force){
   if(force!=null) return ((force % QUOTES.length) + QUOTES.length) % QUOTES.length;
-  // daily-ish: seed by date, but the shuffle button passes a random index
   const d = new Date();
   const seed = d.getFullYear()*1000 + (d.getMonth()+1)*50 + d.getDate();
   return seed % QUOTES.length;
 }
 
 function tokenize(text){
-  boxes = []; words = []; groups = [];
-  let cur = null;
+  words = []; boxes = []; units = [];
+  let curWord = null;
   for(const ch of text){
     if(/[a-zA-Z]/.test(ch)){
-      if(!cur){ cur = {type:'word', parts:[], boxes:[]}; groups.push(cur); words.push(cur); }
-      const box = { answer: ch.toLowerCase(), typed:'', locked:false, status:null, word:cur, el:null };
-      cur.parts.push({kind:'box', box});
-      cur.boxes.push(box);
-      boxes.push(box);
-    } else if((ch==="'"||ch==="’"||ch==='-') && cur){
-      cur.parts.push({kind:'char', ch});
+      if(!curWord){ curWord = []; words.push(curWord); }
+      const bi = boxes.length;
+      boxes.push({ answer: ch.toLowerCase(), wi: words.length-1 });
+      curWord.push(bi);
+      units.push({ t:'box', bi });
+    } else if((ch==="'"||ch==="’"||ch==='-') && curWord){
+      units.push({ t:'ichar', ch });
+    } else if(ch===' '){
+      curWord = null; units.push({ t:'gap' });
     } else {
-      cur = null;
-      groups.push({type:'sep', ch});
+      curWord = null; units.push({ t:'punct', ch });
     }
   }
 }
 
 function buildBoard(){
-  $board.innerHTML = '';
-  groups.forEach(g=>{
-    if(g.type==='sep'){
-      const s = document.createElement('span');
-      if(g.ch===' '){ s.className='sep space'; }
-      else { s.className='sep'; s.textContent = g.ch; }
-      $board.appendChild(s);
-      return;
-    }
-    const w = document.createElement('div'); w.className='word';
-    g.parts.forEach(p=>{
-      if(p.kind==='char'){
-        const c = document.createElement('span'); c.className='ichar'; c.textContent=p.ch; w.appendChild(c);
-      } else {
-        const cell = document.createElement('div'); cell.className='cell';
-        cell.addEventListener('click', e=>{ e.stopPropagation(); focusHidden(); cursor = boxes.indexOf(p.box); render(); });
-        p.box.el = cell; w.appendChild(cell);
+  rowsEl.innerHTML = '';
+  cells2d = [];
+  for(let r=0;r<MAX;r++){
+    const rowEl = document.createElement('div'); rowEl.className = 'row';
+    const cellRow = [];
+    units.forEach(u=>{
+      if(u.t==='box'){
+        const c = document.createElement('div'); c.className = 'cell';
+        const rr = r, bi = u.bi;
+        c.addEventListener('click', e=>{
+          e.stopPropagation();
+          if(rr===activeRow && !gameOver){ cursor = bi; focusHidden(); render(); }
+        });
+        rowEl.appendChild(c); cellRow[bi] = c;
+      } else if(u.t==='ichar' || u.t==='punct'){
+        const s = document.createElement('span'); s.className = 'ichar'; s.textContent = u.ch; rowEl.appendChild(s);
+      } else { // gap
+        const s = document.createElement('span'); s.className = 'sep'; rowEl.appendChild(s);
       }
     });
-    $board.appendChild(w);
-  });
+    rowsEl.appendChild(rowEl);
+    cells2d.push(cellRow);
+  }
 }
 
+function layoutSizing(){
+  const N = boxes.length; if(!N) return;
+  const numWords = words.length;
+  const wordGaps = Math.max(0, numWords-1);
+  const ig = 3, pad = 30;
+  const avail = Math.max(120, $board.clientWidth - pad);
+  let cell = (avail - ig*(N-1)) / (N + 0.6*wordGaps);
+  cell = Math.max(13, Math.min(34, Math.floor(cell)));
+  const s = document.documentElement.style;
+  s.setProperty('--cell', cell+'px');
+  s.setProperty('--wg', Math.round(cell*0.6)+'px');
+  s.setProperty('--ig', ig+'px');
+  s.setProperty('--cf', Math.round(cell*0.6)+'px');
+}
+window.addEventListener('resize', layoutSizing);
+
 function render(){
-  boxes.forEach((b,i)=>{
-    const el = b.el;
-    el.textContent = b.typed || (b.locked ? b.answer.toUpperCase() : '');
-    el.className = 'cell';
-    if(b.locked || b.status==='correct') el.classList.add('correct');
-    else if(b.status==='present') el.classList.add('present');
-    else if(b.status==='absent') el.classList.add('absent');
-    else if(b.status==='reveal'){ el.classList.add('reveal'); }
-    else if(b.typed) el.classList.add('filled');
-    if(!gameOver && i===cursor) el.classList.add('active');
-  });
-  $left.textContent = MAX - guessesUsed;
+  const visible = gameOver ? attempts : Math.min(attempts+1, MAX);
+  for(let r=0;r<MAX;r++){
+    rowsEl.children[r].style.display = (r < visible) ? '' : 'none';
+    for(let i=0;i<boxes.length;i++){
+      const c = cells2d[r][i], d = rowData[r][i];
+      c.textContent = d.typed ? d.typed : (d.status==='reveal' ? boxes[i].answer.toUpperCase() : '');
+      c.className = 'cell';
+      if(d.status==='correct') c.classList.add('correct');
+      else if(d.status==='present') c.classList.add('present');
+      else if(d.status==='absent') c.classList.add('absent');
+      else if(d.status==='reveal') c.classList.add('reveal');
+      else if(d.typed) c.classList.add('filled');
+      if(!gameOver && r===activeRow && i===cursor) c.classList.add('active');
+    }
+  }
+  const lft = document.getElementById('left'); if(lft) lft.textContent = MAX - attempts;
+  // keep the caret in view when a long quote scrolls horizontally
+  if(!gameOver && cursor < boxes.length && cells2d[activeRow] && cells2d[activeRow][cursor]){
+    const br = $board.getBoundingClientRect(), cr = cells2d[activeRow][cursor].getBoundingClientRect();
+    if(cr.left < br.left + 16) $board.scrollLeft += cr.left - br.left - 28;
+    else if(cr.right > br.right - 16) $board.scrollLeft += cr.right - br.right + 28;
+  }
 }
 
 function focusHidden(){ try{ hidden.focus({preventScroll:true}); }catch(e){ hidden.focus(); } }
 
 function typeLetter(ch){
   if(gameOver || cursor >= boxes.length) return;
-  // A locked (already-correct) box absorbs the keystroke and advances, so re-typing a
-  // whole word stays aligned even when some of its letters are already solved.
-  if(boxes[cursor].locked){ cursor++; render(); return; }
-  const b = boxes[cursor];
-  b.typed = ch.toUpperCase();
-  b.status = null;
+  rowData[activeRow][cursor].typed = ch.toUpperCase();
   cursor++;
   render();
 }
 
 function jumpNextWord(){
   if(gameOver || cursor >= boxes.length) return;
-  const b = boxes[cursor], w = b.word;
-  // If we're already parked at the start of a word (e.g. auto-advanced here after
-  // finishing the previous word), a space should just stay put — not skip a word.
-  if(w.boxes[0] === b){ render(); return; }
-  const wi = words.indexOf(w);
-  for(let k = wi+1; k < words.length; k++){
-    const fb = words[k].boxes.find(x=>!x.locked) || words[k].boxes[0];
-    if(fb){ cursor = boxes.indexOf(fb); render(); return; }
-  }
-  cursor = boxes.length; render(); // no further word — park past the end
+  const wi = boxes[cursor].wi;
+  if(words[wi][0] === cursor){ render(); return; } // already at a word start — space is a no-op
+  for(let k=wi+1;k<words.length;k++){ cursor = words[k][0]; render(); return; }
+  cursor = boxes.length; render();
 }
 
 function backspace(){
   if(gameOver) return;
-  let i = cursor - 1;
-  while(i >= 0 && boxes[i].locked) i--;
-  if(i < 0){ cursor = 0; render(); return; }
-  boxes[i].typed = ''; boxes[i].status = null;
+  const i = cursor - 1;
+  if(i < 0){ render(); return; }
+  rowData[activeRow][i].typed = '';
   cursor = i; render();
 }
 
-function signature(){
-  return boxes.map(b => b.locked ? '#' : (b.typed || '.')).join('');
+function evalWord(ans, guess){
+  const n = ans.length, res = new Array(n).fill('blank'), avail = {};
+  ans.forEach(l => avail[l] = (avail[l]||0)+1);
+  for(let i=0;i<n;i++){ if(guess[i]!==null && guess[i]===ans[i]){ res[i]='correct'; avail[guess[i]]--; } }
+  for(let i=0;i<n;i++){
+    if(res[i]!=='blank') continue;
+    const g = guess[i];
+    if(g===null) continue;
+    if(avail[g] > 0){ res[i]='present'; avail[g]--; } else res[i]='absent';
+  }
+  return res;
 }
 
 function submitGuess(){
   if(gameOver) return;
-  const anyTyped = boxes.some(b => b.typed && !b.locked);
-  if(!anyTyped){ flashShake('Type a guess first.'); return; }
-  const sig = signature();
-  if(sig === lastSig){ flashShake('Try something different.'); return; }
-  lastSig = sig;
+  const row = rowData[activeRow];
+  if(!row.some(c => c.typed)){ flashShake('Type a guess first.'); return; }
 
   const popped = [];
-  words.forEach(word=>{
-    const n = word.boxes.length;
-    const ans = word.boxes.map(b => b.answer);
-    const guess = word.boxes.map(b => b.locked ? b.answer : (b.typed ? b.typed.toLowerCase() : null));
-    const result = new Array(n).fill(null);
-    const avail = {};
-    ans.forEach(l => avail[l] = (avail[l]||0)+1);
-    // greens
-    for(let i=0;i<n;i++){ if(guess[i]!==null && guess[i]===ans[i]){ result[i]='correct'; avail[guess[i]]--; } }
-    // yellows / grays
-    for(let i=0;i<n;i++){
-      if(result[i]) continue;
-      const g = guess[i];
-      if(g===null) continue;
-      if(avail[g] > 0){ result[i]='present'; avail[g]--; }
-      else result[i]='absent';
-    }
-    // apply with persistence rules
-    word.boxes.forEach((b,i)=>{
-      const r = result[i];
-      if(r==null) return;            // blank box, leave as-is
-      if(r==='correct'){ b.status='correct'; b.locked=true; b.typed=''; popped.push(b); }
-      else if(r==='present'){ b.status='present'; popped.push(b); }      // hold the letter + colour
-      else { b.status=null; b.typed=''; }                                // absent: clear it
+  words.forEach(wb=>{
+    const ans   = wb.map(bi => boxes[bi].answer);
+    const guess = wb.map(bi => row[bi].typed ? row[bi].typed.toLowerCase() : null);
+    const res   = evalWord(ans, guess);
+    wb.forEach((bi,k)=>{
+      row[bi].status = res[k];
+      if(res[k]==='correct' || res[k]==='present') popped.push(cells2d[activeRow][bi]);
     });
   });
 
+  attempts++;
   render();
-  popped.forEach((b,k)=> setTimeout(()=>{ b.el.classList.add('pop'); setTimeout(()=>b.el.classList.remove('pop'),260); }, k*22));
+  popped.forEach((el,k)=> setTimeout(()=>{ el.classList.add('pop'); setTimeout(()=>el.classList.remove('pop'),260); }, k*16));
 
-  // record this guess for the shareable scorecard: 2=word solved, 1=letters found, 0=blank
-  history.push(words.map(w =>
-    w.boxes.every(b => b.status==='correct') ? 2
-    : w.boxes.some(b => b.status==='correct' || b.status==='present') ? 1
-    : 0));
+  if(boxes.every((b,i) => row[i].status==='correct')){ won=true; gameOver=true; render(); endGame(true); return; }
 
-  const win = boxes.every(b => b.status==='correct');
-  if(win){ endGame(true); return; }
+  revealMeta(attempts);
+  if(attempts >= MAX){ gameOver=true; render(); endGame(false); return; }
 
-  guessesUsed++;
-  revealMeta(guessesUsed);
-  if(guessesUsed >= MAX){ endGame(false); return; }
-
-  // reset to the start so you can simply re-type the whole quote (locked letters
-  // absorb their keystrokes and realign), or click a single word to fix just that one.
-  cursor = 0;
-  render(); buildGuessPips();
-  setMsg('hint', clueRevealedText(guessesUsed) + " — " + (MAX-guessesUsed) + " left.");
+  activeRow = attempts; cursor = 0; render(); buildGuessPips();
+  setMsg('hint', 'Missed — clue ' + attempts + ' unlocked below · ' + (MAX-attempts) + ' to go.');
 }
-
-function clueRevealedText(){ return "Missed — a clue unlocked below"; }
 
 function flashShake(text){
   $board.classList.add('shake');
@@ -983,8 +985,8 @@ function setMsg(kind, text){ $msg.className = kind; $msg.textContent = text; }
 
 function buildGuessPips(){
   let html = '';
-  for(let i=0;i<MAX;i++) html += '<span class="pip'+(i<guessesUsed?' used':'')+'"></span>';
-  html += '<span class="lbl">guesses left: <b id="left">'+(MAX-guessesUsed)+'</b></span>';
+  for(let i=0;i<MAX;i++) html += '<span class="pip'+(i<attempts?' used':'')+'"></span>';
+  html += '<span class="lbl">guesses left: <b id="left">'+(MAX-attempts)+'</b></span>';
   $guesses.innerHTML = html;
 }
 
@@ -999,52 +1001,35 @@ function renderMeta(revealed){
 }
 function revealMeta(n){ renderMeta(n); }
 
-function endGame(won){
-  gameOver = true;
-  // reveal full answer in the board
-  boxes.forEach(b=>{
-    if(b.status!=='correct'){ b.status = won ? 'correct' : 'reveal'; b.typed=''; b.locked = won; }
-  });
-  render();
-  renderMeta(current.meta.length); // unlock all clues at the end
-  $endline.style.display = 'block';
-  if(won){
-    const n = history.length;
-    setMsg('good', n===1 ? '✦ Solved on the first guess!' : '✦ Solved in ' + n + ' guesses!');
-    $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
-  } else {
-    setMsg('bad', 'Out of guesses — the quote was:');
-    $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
-  }
-  buildGuessPips();
-  showScorecard(won);
+/* ---- shareable scorecard: one emoji per letter, words separated by a space, a line per guess ---- */
+function statusEmoji(s){ return s==='correct' ? '🟩' : s==='present' ? '🟨' : s==='absent' ? '⬛' : '⬜'; }
+function scoreLine(r){
+  return words.map(wb => wb.map(bi => statusEmoji(rowData[r][bi].status)).join('')).join(' ');
 }
-
-/* ---- shareable scorecard ---- */
-const TILES = ['⬛','🟨','🟩'];
-function scoreLabel(won){ return (won ? history.length : 'X') + '/' + MAX; }
-function scorecardText(won){
-  const head = 'Quotle #' + (currentIndex+1) + '  ' + scoreLabel(won);
-  const grid = history.map(r => r.map(v => TILES[v]).join('')).join('\n');
-  return head + '\n\n' + grid + '\n\n' + SITE_URL;
+function scoreLabel(w){ return (w ? attempts : 'X') + '/' + MAX; }
+function scorecardText(w){
+  const head = 'Quotle #' + (currentIndex+1) + '  ' + scoreLabel(w);
+  const lines = [];
+  for(let r=0;r<attempts;r++) lines.push(scoreLine(r));
+  return head + '\n\n' + lines.join('\n') + '\n\n' + SITE_URL;
 }
-function showScorecard(won){
-  lastWon = won;
-  const grid = history.map(r => r.map(v => TILES[v]).join('')).join('<br>');
-  $cardHead.textContent = 'QUOTLE #' + (currentIndex+1) + ' · ' + scoreLabel(won) + (won ? ' ✓' : '');
-  $cardGrid.innerHTML = grid;
+function showScorecard(w){
+  lastWon = w;
+  const lines = [];
+  for(let r=0;r<attempts;r++) lines.push(scoreLine(r));
+  $cardHead.textContent = 'QUOTLE #' + (currentIndex+1) + ' · ' + scoreLabel(w) + (w ? ' ✓' : '');
+  $cardGrid.innerHTML = '<div>' + lines.join('<br>') + '</div>';
   $shareNote.textContent = '';
   $result.style.display = 'block';
   if(navigator.share) $shareBtn.style.display = '';
   $result.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-async function copyResult(won){
-  const text = scorecardText(won);
+async function copyResult(w){
+  const text = scorecardText(w);
   try{
     await navigator.clipboard.writeText(text);
     $shareNote.textContent = 'Copied to clipboard!';
   }catch(e){
-    // fallback: temporary textarea
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
     try{ document.execCommand('copy'); $shareNote.textContent = 'Copied to clipboard!'; }
@@ -1053,22 +1038,44 @@ async function copyResult(won){
   }
 }
 
+function endGame(w){
+  gameOver = true;
+  // reveal the answer on the first unused line (if there is one) so missed letters are visible
+  if(!w && attempts < MAX){ /* shouldn't happen on loss */ }
+  renderMeta(current.meta.length);
+  $endline.style.display = 'block';
+  if(w){
+    setMsg('good', attempts===1 ? '✦ Solved on the first line!' : '✦ Solved in ' + attempts + ' guesses!');
+  } else {
+    setMsg('bad', 'Out of guesses — the quote was:');
+  }
+  $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
+  buildGuessPips();
+  showScorecard(w);
+}
+
 function newGame(force){
   currentIndex = pickIndex(force);
   current = QUOTES[currentIndex];
   tokenize(current.text);
-  buildBoard();
-  cursor = 0; guessesUsed = 0; gameOver = false; lastSig = ""; history = [];
-  $endline.style.display = 'none'; $endline.innerHTML='';
+  rowData = [];
+  for(let r=0;r<MAX;r++){
+    const row = [];
+    for(let i=0;i<boxes.length;i++) row.push({ typed:'', status:null });
+    rowData.push(row);
+  }
+  attempts = 0; activeRow = 0; cursor = 0; gameOver = false; won = false;
+  buildBoard(); layoutSizing();
+  $endline.style.display = 'none'; $endline.innerHTML = '';
   $result.style.display = 'none';
   renderMeta(0); buildGuessPips(); render();
-  setMsg('hint', 'Type letters to fill the boxes — space jumps words, Enter guesses.');
+  setMsg('hint', 'Type the quote on the first line — space jumps words, Enter to guess.');
   focusHidden();
 }
 
 /* ---- input wiring ---- */
 hidden.addEventListener('input', e=>{
-  const data = e.data; hidden.value='';
+  const data = e.data; hidden.value = '';
   if(!data) return;
   for(const ch of data){
     if(/[a-zA-Z]/.test(ch)) typeLetter(ch);
@@ -1080,7 +1087,6 @@ hidden.addEventListener('keydown', e=>{
   else if(e.key==='Backspace'){ e.preventDefault(); backspace(); }
   else if(e.key===' '){ e.preventDefault(); jumpNextWord(); }
 });
-// keep keyboard summoned; route stray document keys too (desktop safety net)
 document.addEventListener('keydown', e=>{
   if(document.activeElement===hidden) return;
   if(e.metaKey||e.ctrlKey||e.altKey) return;
@@ -1090,7 +1096,7 @@ document.addEventListener('keydown', e=>{
   else if(e.key.length===1 && /[a-zA-Z]/.test(e.key)){ typeLetter(e.key); }
 });
 $board.addEventListener('click', focusHidden);
-document.body.addEventListener('click', e=>{ if(!e.target.closest('button')&&!e.target.closest('details')) focusHidden(); });
+document.body.addEventListener('click', e=>{ if(!e.target.closest('button') && !e.target.closest('details')) focusHidden(); });
 
 function shuffleGame(){
   let idx; do { idx = Math.floor(Math.random()*QUOTES.length); } while(QUOTES.length>1 && idx===currentIndex);
@@ -1101,7 +1107,7 @@ document.getElementById('againBtn').addEventListener('click', shuffleGame);
 $copyBtn.addEventListener('click', ()=> copyResult(lastWon));
 $shareBtn.addEventListener('click', async ()=>{
   try{ await navigator.share({ title:'Quotle', text: scorecardText(lastWon) }); }
-  catch(e){ /* user cancelled */ }
+  catch(e){ /* cancelled */ }
 });
 document.getElementById('howBtn').addEventListener('click', ()=>{
   const h = document.getElementById('help'); h.open = !h.open; if(h.open) h.scrollIntoView({behavior:'smooth',block:'nearest'});
