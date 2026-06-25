@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Quotle — Guess the Famous Quote</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#15171c; --panel2:#1b1e25; --line:#2c313c;
+    --ink:#e9e7e1; --muted:#9aa0ab; --dim:#6b7280;
+    --accent:#e0903f; --accent2:#f0b46a;
+    --correct:#4f9d4f; --present:#caa53d; --absent:#33373f;
+    --box:#1f232b; --boxline:#3a4150;
+    --good:#7bd36a; --bad:#e06a6a;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1200px 700px at 50% -10%,#181b22 0%,var(--bg) 60%);
+    color:var(--ink); font-family:var(--mono); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:64px 14px 48px; -webkit-tap-highlight-color:transparent;
+  }
+  a{color:var(--accent)}
+  header.title{ text-align:center; margin:6px 0 4px }
+  header.title h1{
+    margin:0; font-size:34px; letter-spacing:6px; font-weight:700;
+    background:linear-gradient(180deg,#fff,var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header.title .sub{ color:var(--muted); font-size:12px; letter-spacing:1px; margin-top:4px }
+
+  .topbar{ display:flex; gap:8px; align-items:center; margin:14px 0 6px; flex-wrap:wrap; justify-content:center }
+  button.btn{
+    font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.5px;
+    color:var(--ink); background:var(--panel2); border:1px solid var(--line);
+    padding:7px 12px; border-radius:8px; cursor:pointer; transition:.15s;
+  }
+  button.btn:hover{ border-color:var(--accent); color:var(--accent2) }
+  button.btn.primary{ background:linear-gradient(180deg,#2a2f1f,#23261c); border-color:#5a5a36; color:var(--accent2) }
+
+  .guesses{ display:flex; gap:7px; align-items:center; margin:8px 0 2px }
+  .pip{ width:11px; height:11px; border-radius:50%; background:#272b33; border:1px solid var(--boxline) }
+  .pip.used{ background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px rgba(224,144,63,.5) }
+  .guesses .lbl{ color:var(--muted); font-size:12px; margin-left:6px }
+
+  .stage{ width:100%; max-width:760px; display:flex; flex-direction:column; align-items:center }
+
+  /* Board */
+  #board{
+    width:100%; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:18px 16px; margin:12px 0;
+    display:flex; flex-wrap:wrap; gap:10px 14px; justify-content:center; cursor:text;
+    min-height:90px;
+  }
+  .word{ display:flex; gap:5px; align-items:center }
+  .ichar{ color:var(--dim); font-size:18px; align-self:center; padding:0 1px }
+  .sep{ color:var(--dim); align-self:center; font-size:20px; padding:0 2px; user-select:none }
+  .sep.space{ width:4px }
+
+  .cell{
+    width:38px; height:46px; border:2px solid var(--boxline); border-radius:6px;
+    background:var(--box); display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:600; text-transform:uppercase; color:var(--ink);
+    transition:background-color .25s, border-color .2s, color .2s, transform .12s;
+    position:relative;
+  }
+  .cell.filled{ border-color:#5a626f }
+  .cell.active{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(224,144,63,.25) inset }
+  .cell.correct{ background:var(--correct); border-color:var(--correct); color:#fff }
+  .cell.present{ background:var(--present); border-color:var(--present); color:#1c1a12 }
+  .cell.absent{ background:var(--absent); border-color:var(--absent); color:var(--muted) }
+  .cell.reveal{ background:transparent; border-color:var(--accent); color:var(--accent2) }
+  .cell.pop{ animation:pop .26s ease }
+  @keyframes pop{ 0%{transform:scale(1)} 45%{transform:scale(1.16)} 100%{transform:scale(1)} }
+  #board.shake{ animation:shake .4s }
+  @keyframes shake{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-7px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+
+  #message{ min-height:22px; font-size:13px; font-weight:600; letter-spacing:.4px; text-align:center; margin:2px 0 4px }
+  #message.good{ color:var(--good) } #message.bad{ color:var(--bad) } #message.hint{ color:var(--accent2) }
+
+  /* Meta panel */
+  .meta{
+    width:100%; max-width:760px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:14px 16px; margin-top:6px;
+  }
+  .meta h3{ margin:0 0 8px; font-size:12px; letter-spacing:2px; color:var(--muted); font-weight:600 }
+  .meta ol{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:7px }
+  .meta li{ font-size:13.5px; line-height:1.45; color:var(--ink) }
+  .meta li.locked{ list-style:none; margin-left:-20px; color:var(--dim); display:flex; align-items:center; gap:8px }
+  .meta li.locked::before{ content:"🔒"; font-size:12px; filter:grayscale(.3) opacity(.7) }
+  .meta li.locked em{ font-style:normal }
+  .meta .endline{ margin-top:12px; padding-top:12px; border-top:1px dashed var(--line); font-size:13.5px; color:var(--accent2) }
+  .meta .endline b{ color:#fff }
+
+  /* How to play */
+  details.help{ width:100%; max-width:760px; margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:4px 16px }
+  details.help summary{ cursor:pointer; padding:10px 0; font-size:12px; letter-spacing:1px; color:var(--muted); font-weight:600; outline:none }
+  details.help[open] summary{ color:var(--accent2) }
+  details.help .body{ font-size:13px; line-height:1.6; color:var(--ink); padding:0 0 14px }
+  details.help .body p{ margin:8px 0 } details.help .body strong{ color:var(--accent2) }
+  details.help .swatch{ display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:-2px; margin:0 2px }
+
+  .hiddenInput{ position:fixed; top:-100px; left:0; opacity:0; height:1px; width:1px }
+  footer{ color:var(--dim); font-size:11px; margin-top:26px; text-align:center }
+  @media (max-width:560px){
+    .cell{ width:30px; height:38px; font-size:18px; border-radius:5px }
+    #board{ gap:8px 10px; padding:14px 10px }
+    .word{ gap:4px } header.title h1{ font-size:28px; letter-spacing:4px }
+  }
+  @media (max-width:380px){ .cell{ width:25px; height:33px; font-size:15px } }
+</style>
+</head>
+<body>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Quotle</span></nav>
+
+<header class="title">
+  <h1>QUOTLE</h1>
+  <div class="sub">guess the famous quote · 5 tries · clues unlock as you miss</div>
+</header>
+
+<div class="topbar">
+  <button class="btn" id="howBtn">How to play</button>
+  <button class="btn primary" id="newBtn">New quote ↻</button>
+</div>
+
+<div class="guesses" id="guesses"><span class="lbl">guesses left: <b id="left">5</b></span></div>
+
+<div class="stage">
+  <div id="message" class="hint">Type letters to fill the boxes — Enter to guess.</div>
+  <div id="board" tabindex="0"></div>
+</div>
+
+<div class="meta">
+  <h3>METADATA — CLUES</h3>
+  <ol id="metaList"></ol>
+  <div class="endline" id="endline" style="display:none"></div>
+</div>
+
+<details class="help" id="help">
+  <summary>HOW TO PLAY ▾</summary>
+  <div class="body">
+    <p>A famous quote is hidden. Every <strong>letter</strong> is a box; gaps between words and punctuation are shown for you. You get <strong>5 guesses</strong>.</p>
+    <p><strong>Typing:</strong> just type. Letters flow across the boxes; press <strong>space</strong> to jump to the next word, <strong>Backspace</strong> to delete, click a box to move there. You can type a whole word, a single word in one spot, or the entire quote — then hit <strong>Enter</strong>.</p>
+    <p><strong>Colours</strong> (Wordle-style, but <strong>per word</strong>):
+      <span class="swatch" style="background:var(--correct)"></span> right letter, right spot — <strong>locked in</strong>;
+      <span class="swatch" style="background:var(--present)"></span> that letter <em>is somewhere in this word</em>, wrong spot — <strong>held in place</strong> as a clue;
+      <span class="swatch" style="background:var(--absent)"></span> not in this word.</p>
+    <p><strong>The twist:</strong> a yellow only tells you about <em>the word you guessed it in</em>. Finding an “e” in word 3 says nothing about “e” in any other word — every word keeps its own secrets.</p>
+    <p>Each wrong guess <strong>unlocks one more clue</strong> about the quote. Solve every word to win.</p>
+  </div>
+</details>
+
+<footer>Quotle · a Slop-Bucket game · all guessing happens in your browser</footer>
+
+<input class="hiddenInput" id="hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-hidden="true">
+
+<script>
+const QUOTES = [
+  { text:"I think therefore I am", author:"René Descartes", meta:[
+    "Category — Philosophy; a foundational statement of certainty.",
+    "Originally written in French and Latin in the 17th century.",
+    "It appears in a 1637 work on method and reason.",
+    "The author was a French mathematician and philosopher.",
+    "Often quoted in Latin as “Cogito, ergo sum.”" ] },
+  { text:"To be or not to be", author:"William Shakespeare — Hamlet", meta:[
+    "Category — Theatre; the opening of a famous soliloquy.",
+    "Written by an English playwright around the year 1600.",
+    "Spoken by a Danish prince weighing life against death.",
+    "From one of the most-performed tragedies ever written.",
+    "The play is named after the prince who speaks it." ] },
+  { text:"Knowledge is power", author:"Francis Bacon", meta:[
+    "Category — Aphorism about learning.",
+    "First put in Latin — “scientia potestas est” — in 1597.",
+    "The author helped pioneer the scientific method.",
+    "He was an English philosopher, statesman and essayist.",
+    "His surname is spelled like a breakfast meat." ] },
+  { text:"I came I saw I conquered", author:"Julius Caesar", meta:[
+    "Category — History; a boast after a swift victory.",
+    "Famously terse — three short clauses.",
+    "Reported after a 47 BC battle near the Black Sea.",
+    "The author was a Roman general and statesman.",
+    "In Latin it reads “Veni, vidi, vici.”" ] },
+  { text:"Stay hungry stay foolish", author:"Steve Jobs", meta:[
+    "Category — Technology; advice to graduates.",
+    "From a 2005 commencement speech at Stanford.",
+    "Four words, with one of them repeated.",
+    "The speaker co-founded a fruit-named tech company.",
+    "He borrowed the line from the Whole Earth Catalog." ] },
+  { text:"That's one small step for man", author:"Neil Armstrong", meta:[
+    "Category — Space exploration; spoken live to millions.",
+    "Said in July 1969 during a historic first.",
+    "The next words are “one giant leap for mankind.”",
+    "The speaker was an American astronaut.",
+    "He was the first person to walk on the Moon." ] },
+  { text:"Elementary my dear Watson", author:"attributed to Sherlock Holmes", meta:[
+    "Category — Literature; a detective's catchphrase.",
+    "Curiously, it never appears in the original stories.",
+    "Addressed to the narrator — a loyal doctor friend.",
+    "The detective lodged at 221B Baker Street.",
+    "The friend's surname is the last word of the quote." ] },
+  { text:"I have a dream", author:"Martin Luther King Jr.", meta:[
+    "Category — Civil-rights oratory.",
+    "Delivered in Washington D.C. in August 1963.",
+    "Repeated as a refrain throughout the speech.",
+    "The speaker was an American Baptist minister.",
+    "He led the 1963 March on Washington." ] },
+  { text:"May the force be with you", author:"Star Wars (1977)", meta:[
+    "Category — Film; a benediction between characters.",
+    "From a space opera first released in 1977.",
+    "Said for luck before great danger.",
+    "An unseen energy field gives the line its meaning.",
+    "Its sci-fi saga shares a word with the third box-word." ] },
+  { text:"Float like a butterfly sting like a bee", author:"Muhammad Ali", meta:[
+    "Category — Sport; a fighter's self-description.",
+    "Coined in the 1960s before a heavyweight title bout.",
+    "Two creatures appear — one delicate, one stinging.",
+    "The speaker was an American boxer and activist.",
+    "He called himself “The Greatest.”" ] },
+];
+
+const MAX = 5;
+let boxes = [], words = [], groups = [], cursor = 0;
+let guessesUsed = 0, gameOver = false, lastSig = "", current = null;
+
+const $board = document.getElementById('board');
+const $msg = document.getElementById('message');
+const $metaList = document.getElementById('metaList');
+const $endline = document.getElementById('endline');
+const $left = document.getElementById('left');
+const $guesses = document.getElementById('guesses');
+const hidden = document.getElementById('hidden');
+
+function pickQuote(force){
+  if(force!=null) return QUOTES[force%QUOTES.length];
+  // daily-ish: seed by date, but shuffle button gives random
+  const d = new Date();
+  const seed = d.getFullYear()*1000 + (d.getMonth()+1)*50 + d.getDate();
+  return QUOTES[seed % QUOTES.length];
+}
+
+function tokenize(text){
+  boxes = []; words = []; groups = [];
+  let cur = null;
+  for(const ch of text){
+    if(/[a-zA-Z]/.test(ch)){
+      if(!cur){ cur = {type:'word', parts:[], boxes:[]}; groups.push(cur); words.push(cur); }
+      const box = { answer: ch.toLowerCase(), typed:'', locked:false, status:null, word:cur, el:null };
+      cur.parts.push({kind:'box', box});
+      cur.boxes.push(box);
+      boxes.push(box);
+    } else if((ch==="'"||ch==="’"||ch==='-') && cur){
+      cur.parts.push({kind:'char', ch});
+    } else {
+      cur = null;
+      groups.push({type:'sep', ch});
+    }
+  }
+}
+
+function buildBoard(){
+  $board.innerHTML = '';
+  groups.forEach(g=>{
+    if(g.type==='sep'){
+      const s = document.createElement('span');
+      if(g.ch===' '){ s.className='sep space'; }
+      else { s.className='sep'; s.textContent = g.ch; }
+      $board.appendChild(s);
+      return;
+    }
+    const w = document.createElement('div'); w.className='word';
+    g.parts.forEach(p=>{
+      if(p.kind==='char'){
+        const c = document.createElement('span'); c.className='ichar'; c.textContent=p.ch; w.appendChild(c);
+      } else {
+        const cell = document.createElement('div'); cell.className='cell';
+        cell.addEventListener('click', e=>{ e.stopPropagation(); focusHidden(); cursor = boxes.indexOf(p.box); render(); });
+        p.box.el = cell; w.appendChild(cell);
+      }
+    });
+    $board.appendChild(w);
+  });
+}
+
+function render(){
+  boxes.forEach((b,i)=>{
+    const el = b.el;
+    el.textContent = b.typed || (b.locked ? b.answer.toUpperCase() : '');
+    el.className = 'cell';
+    if(b.locked || b.status==='correct') el.classList.add('correct');
+    else if(b.status==='present') el.classList.add('present');
+    else if(b.status==='absent') el.classList.add('absent');
+    else if(b.status==='reveal'){ el.classList.add('reveal'); }
+    else if(b.typed) el.classList.add('filled');
+    if(!gameOver && i===cursor) el.classList.add('active');
+  });
+  $left.textContent = MAX - guessesUsed;
+}
+
+function focusHidden(){ try{ hidden.focus({preventScroll:true}); }catch(e){ hidden.focus(); } }
+
+function typeLetter(ch){
+  if(gameOver) return;
+  while(cursor < boxes.length && boxes[cursor].locked) cursor++;
+  if(cursor >= boxes.length) return;
+  const b = boxes[cursor];
+  b.typed = ch.toUpperCase();
+  b.status = null;
+  let n = cursor + 1;
+  while(n < boxes.length && boxes[n].locked) n++;
+  cursor = n;
+  render();
+}
+
+function jumpNextWord(){
+  if(gameOver || cursor >= boxes.length) return;
+  const b = boxes[cursor], w = b.word;
+  // If we're already parked at the start of a word (e.g. auto-advanced here after
+  // finishing the previous word), a space should just stay put — not skip a word.
+  if(w.boxes[0] === b){ render(); return; }
+  const wi = words.indexOf(w);
+  for(let k = wi+1; k < words.length; k++){
+    const fb = words[k].boxes.find(x=>!x.locked) || words[k].boxes[0];
+    if(fb){ cursor = boxes.indexOf(fb); render(); return; }
+  }
+  cursor = boxes.length; render(); // no further word — park past the end
+}
+
+function backspace(){
+  if(gameOver) return;
+  let i = cursor - 1;
+  while(i >= 0 && boxes[i].locked) i--;
+  if(i < 0){ cursor = 0; render(); return; }
+  boxes[i].typed = ''; boxes[i].status = null;
+  cursor = i; render();
+}
+
+function signature(){
+  return boxes.map(b => b.locked ? '#' : (b.typed || '.')).join('');
+}
+
+function submitGuess(){
+  if(gameOver) return;
+  const anyTyped = boxes.some(b => b.typed && !b.locked);
+  if(!anyTyped){ flashShake('Type a guess first.'); return; }
+  const sig = signature();
+  if(sig === lastSig){ flashShake('Try something different.'); return; }
+  lastSig = sig;
+
+  const popped = [];
+  words.forEach(word=>{
+    const n = word.boxes.length;
+    const ans = word.boxes.map(b => b.answer);
+    const guess = word.boxes.map(b => b.locked ? b.answer : (b.typed ? b.typed.toLowerCase() : null));
+    const result = new Array(n).fill(null);
+    const avail = {};
+    ans.forEach(l => avail[l] = (avail[l]||0)+1);
+    // greens
+    for(let i=0;i<n;i++){ if(guess[i]!==null && guess[i]===ans[i]){ result[i]='correct'; avail[guess[i]]--; } }
+    // yellows / grays
+    for(let i=0;i<n;i++){
+      if(result[i]) continue;
+      const g = guess[i];
+      if(g===null) continue;
+      if(avail[g] > 0){ result[i]='present'; avail[g]--; }
+      else result[i]='absent';
+    }
+    // apply with persistence rules
+    word.boxes.forEach((b,i)=>{
+      const r = result[i];
+      if(r==null) return;            // blank box, leave as-is
+      if(r==='correct'){ b.status='correct'; b.locked=true; b.typed=''; popped.push(b); }
+      else if(r==='present'){ b.status='present'; popped.push(b); }      // hold the letter + colour
+      else { b.status=null; b.typed=''; }                                // absent: clear it
+    });
+  });
+
+  render();
+  popped.forEach((b,k)=> setTimeout(()=>{ b.el.classList.add('pop'); setTimeout(()=>b.el.classList.remove('pop'),260); }, k*22));
+
+  const win = boxes.every(b => b.status==='correct');
+  if(win){ endGame(true); return; }
+
+  guessesUsed++;
+  revealMeta(guessesUsed);
+  if(guessesUsed >= MAX){ endGame(false); return; }
+
+  // helpful: park cursor on first open box
+  cursor = boxes.findIndex(b=>!b.locked); if(cursor<0) cursor=boxes.length;
+  render(); buildGuessPips();
+  setMsg('hint', clueRevealedText(guessesUsed) + " — " + (MAX-guessesUsed) + " left.");
+}
+
+function clueRevealedText(){ return "Missed — a clue unlocked below"; }
+
+function flashShake(text){
+  $board.classList.add('shake');
+  setTimeout(()=>$board.classList.remove('shake'), 420);
+  if(text) setMsg('bad', text);
+}
+function setMsg(kind, text){ $msg.className = kind; $msg.textContent = text; }
+
+function buildGuessPips(){
+  let html = '';
+  for(let i=0;i<MAX;i++) html += '<span class="pip'+(i<guessesUsed?' used':'')+'"></span>';
+  html += '<span class="lbl">guesses left: <b id="left">'+(MAX-guessesUsed)+'</b></span>';
+  $guesses.innerHTML = html;
+}
+
+function renderMeta(revealed){
+  $metaList.innerHTML = '';
+  current.meta.forEach((m,i)=>{
+    const li = document.createElement('li');
+    if(i < revealed){ li.textContent = m; }
+    else { li.className='locked'; li.innerHTML = '<em>clue '+(i+1)+' — unlocks on a wrong guess</em>'; }
+    $metaList.appendChild(li);
+  });
+}
+function revealMeta(n){ renderMeta(n); }
+
+function endGame(won){
+  gameOver = true;
+  // reveal full answer in the board
+  boxes.forEach(b=>{
+    if(b.status!=='correct'){ b.status = won ? 'correct' : 'reveal'; b.typed=''; b.locked = won; }
+  });
+  render();
+  renderMeta(current.meta.length); // unlock all clues at the end
+  $endline.style.display = 'block';
+  if(won){
+    const w = guessesUsed;
+    setMsg('good', w===0 ? '✦ Solved on the first guess!' : '✦ Solved with ' + w + ' wrong guess' + (w===1?'':'es') + '!');
+    $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
+  } else {
+    setMsg('bad', 'Out of guesses — the quote was:');
+    $endline.innerHTML = '“<b>'+current.text+'</b>” — '+current.author;
+  }
+  buildGuessPips();
+}
+
+function newGame(force){
+  current = pickQuote(force);
+  tokenize(current.text);
+  buildBoard();
+  cursor = 0; guessesUsed = 0; gameOver = false; lastSig = "";
+  $endline.style.display = 'none'; $endline.innerHTML='';
+  renderMeta(0); buildGuessPips(); render();
+  setMsg('hint', 'Type letters to fill the boxes — space jumps words, Enter guesses.');
+  focusHidden();
+}
+
+/* ---- input wiring ---- */
+hidden.addEventListener('input', e=>{
+  const data = e.data; hidden.value='';
+  if(!data) return;
+  for(const ch of data){
+    if(/[a-zA-Z]/.test(ch)) typeLetter(ch);
+    else if(ch===' ') jumpNextWord();
+  }
+});
+hidden.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); submitGuess(); }
+  else if(e.key==='Backspace'){ e.preventDefault(); backspace(); }
+  else if(e.key===' '){ e.preventDefault(); jumpNextWord(); }
+});
+// keep keyboard summoned; route stray document keys too (desktop safety net)
+document.addEventListener('keydown', e=>{
+  if(document.activeElement===hidden) return;
+  if(e.metaKey||e.ctrlKey||e.altKey) return;
+  if(e.key==='Enter'){ e.preventDefault(); submitGuess(); }
+  else if(e.key==='Backspace'){ e.preventDefault(); backspace(); }
+  else if(e.key===' '){ e.preventDefault(); jumpNextWord(); }
+  else if(e.key.length===1 && /[a-zA-Z]/.test(e.key)){ typeLetter(e.key); }
+});
+$board.addEventListener('click', focusHidden);
+document.body.addEventListener('click', e=>{ if(!e.target.closest('button')&&!e.target.closest('details')) focusHidden(); });
+
+document.getElementById('newBtn').addEventListener('click', ()=>{
+  // random different quote
+  let idx; do { idx = Math.floor(Math.random()*QUOTES.length); } while(QUOTES.length>1 && QUOTES[idx]===current);
+  newGame(idx);
+});
+document.getElementById('howBtn').addEventListener('click', ()=>{
+  const h = document.getElementById('help'); h.open = !h.open; if(h.open) h.scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+
+newGame();
+</script>
+</body>
+</html>
