@@ -181,7 +181,7 @@
       <span class="swatch" style="background:var(--present)"></span> that letter <em>is somewhere in this word</em>, wrong spot;
       <span class="swatch" style="background:var(--absent)"></span> not in this word.</p>
     <p><strong>The twist:</strong> a yellow only tells you about <em>the word you guessed it in</em>. Finding an “e” in word 3 says nothing about “e” in any other word — every word keeps its own secrets.</p>
-    <p>Each wrong guess <strong>unlocks one more clue</strong> about the quote. Get the whole quote right on a single line to win — then <strong>copy your scorecard</strong> (one emoji per letter) and share it.</p>
+    <p>You start with <strong>one clue</strong> about the quote, and each wrong guess <strong>unlocks another</strong> (all five are out by your final guess). Get the whole quote right on a single line to win — then <strong>copy your scorecard</strong> (one emoji per letter) and share it.</p>
     <p>Everyone gets the same <strong>Quote of the Day</strong> (it changes at midnight UTC). Once you’ve finished today’s, <strong>Play another</strong> unlocks — a random quote from the archive of 100, just for fun.</p>
   </div>
 </details>
@@ -1025,11 +1025,12 @@ function submitGuess(){
 
   if(boxes.every((b,i) => row[i].status==='correct')){ won=true; gameOver=true; render(); endGame(true); return; }
 
-  revealMeta(attempts);
+  // clue 1 shows from the start, so after N wrong guesses clue N+1 is revealed
+  revealMeta(attempts + 1);
   if(attempts >= MAX){ gameOver=true; render(); endGame(false); return; }
 
   activeRow = attempts; cursor = 0; render(); buildGuessPips();
-  setMsg('hint', 'Missed — clue ' + attempts + ' unlocked below · ' + (MAX-attempts) + ' to go.');
+  setMsg('hint', 'Missed — clue ' + (attempts+1) + ' unlocked below · ' + (MAX-attempts) + ' to go.');
 }
 
 function flashShake(text){
@@ -1126,9 +1127,9 @@ function newGame(index){
   buildBoard(); layoutSizing();
   $endline.style.display = 'none'; $endline.innerHTML = '';
   $result.style.display = 'none';
-  renderMeta(0); buildGuessPips(); render();
+  renderMeta(1); buildGuessPips(); render();
   updateDaystamp(); updatePlayAnother();
-  setMsg('hint', (mode==='daily' ? 'Quote of the day' : 'Random quote') + ' — type it on the first line, Enter to guess.');
+  setMsg('hint', (mode==='daily' ? 'Quote of the day' : 'Random quote') + ' — clue 1 is below; type it on the first line, Enter to guess.');
   focusHidden();
 }
 
