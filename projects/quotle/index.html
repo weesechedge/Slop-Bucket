@@ -162,9 +162,10 @@
 <div class="result" id="result" style="display:none">
   <div class="cardHead" id="cardHead"></div>
   <div class="cardGrid" id="cardGrid"></div>
-  <div class="cardLegend">🟩 right spot&nbsp;&nbsp;🟨 in the word&nbsp;&nbsp;⬛ not in word&nbsp;&nbsp;⬜ left blank&nbsp;·&nbsp;one line per guess</div>
+  <div class="cardLegend">🟩 right spot&nbsp;&nbsp;🟨 in the word&nbsp;&nbsp;⬛ not in word&nbsp;·&nbsp;one line per guess</div>
   <div class="cardBtns">
     <button class="btn primary" id="copyBtn">Copy result 📋</button>
+    <button class="btn" id="copyLettersBtn">Copy with letters 🔤</button>
     <button class="btn" id="shareBtn" style="display:none">Share ↗</button>
     <button class="btn" id="againBtn">Play another ↻</button>
   </div>
@@ -175,7 +176,7 @@
   <summary>HOW TO PLAY ▾</summary>
   <div class="body">
     <p>A famous quote is hidden. The whole quote sits on <strong>one line</strong> of boxes — one box per letter, with spaces between words. You get <strong>5 guesses</strong>.</p>
-    <p><strong>Each guess is a fresh line.</strong> Type your attempt at the quote — press <strong>space</strong> to jump to the next word, <strong>Backspace</strong> to delete, click a box to move there — then hit <strong>Enter</strong>. Your line is colour-graded and a new blank line appears below, so every guess <strong>stacks up</strong> and you can read each column to see what you’ve already nailed.</p>
+    <p><strong>Each guess is a fresh line.</strong> Type your attempt at the quote — use the <strong>arrow keys</strong> or click to move between boxes, <strong>space</strong> to jump to the next word, <strong>Backspace</strong> to delete — and <strong>fill every letter</strong> before you hit <strong>Enter</strong>. Your line is colour-graded and a new blank line appears below, so every guess <strong>stacks up</strong> and you can read each column to see what you’ve already nailed.</p>
     <p><strong>Colours</strong> (Wordle-style, but graded <strong>per word</strong>):
       <span class="swatch" style="background:var(--correct)"></span> right letter, right spot;
       <span class="swatch" style="background:var(--present)"></span> that letter <em>is somewhere in this word</em>, wrong spot;
@@ -205,6 +206,7 @@ let current = null, currentIndex = 0;
 let rowData = [];    // rowData[r][i] = { typed, status }  (status: null|'correct'|'present'|'absent'|'blank'|'reveal')
 let cells2d = [];    // cells2d[r][i] = DOM cell
 let attempts = 0, activeRow = 0, cursor = 0, gameOver = false, won = false;
+let advancedToWordStart = false; // true right after a typed letter carried us onto a word's first box
 let history = [], lastWon = false;
 
 const $board    = document.getElementById('board');
@@ -299,7 +301,7 @@ function buildBoard(){
         const rr = r, bi = u.bi;
         c.addEventListener('click', e=>{
           e.stopPropagation();
-          if(rr===activeRow && !gameOver){ cursor = bi; focusHidden(); render(); }
+          if(rr===activeRow && !gameOver){ cursor = bi; advancedToWordStart = false; focusHidden(); render(); }
         });
         ensureWord().appendChild(c); cellRow[bi] = c;
       } else if(u.t==='ichar'){
@@ -366,26 +368,50 @@ function render(){
 function focusHidden(){ try{ hidden.focus({preventScroll:true}); }catch(e){ hidden.focus(); } }
 
 function typeLetter(ch){
-  if(gameOver || cursor >= boxes.length) return;
+  if(gameOver) return;
+  const prev = cursor;
   rowData[activeRow][cursor].typed = ch.toUpperCase();
-  cursor++;
+  cursor = Math.min(cursor + 1, boxes.length - 1);
+  // note if a typed letter just carried us onto a word's first box, so the next space is
+  // treated as redundant — that keeps "typing a quote with spaces" from skipping a word
+  advancedToWordStart = (cursor !== prev) && (words[boxes[cursor].wi][0] === cursor);
+  render();
+}
+
+function moveCursor(d){
+  if(gameOver) return;
+  advancedToWordStart = false;
+  cursor = Math.max(0, Math.min(boxes.length - 1, cursor + d));
+  render();
+}
+function setCursor(i){
+  if(gameOver) return;
+  advancedToWordStart = false;
+  cursor = Math.max(0, Math.min(boxes.length - 1, i));
   render();
 }
 
 function jumpNextWord(){
-  if(gameOver || cursor >= boxes.length) return;
+  if(gameOver) return;
+  // a space straight after a letter landed us on a word start is redundant — stay put
+  if(advancedToWordStart){ advancedToWordStart = false; render(); return; }
   const wi = boxes[cursor].wi;
-  if(words[wi][0] === cursor){ render(); return; } // already at a word start — space is a no-op
-  for(let k=wi+1;k<words.length;k++){ cursor = words[k][0]; render(); return; }
-  cursor = boxes.length; render();
+  cursor = words[(wi + 1) % words.length][0]; // otherwise jump to the next word's first letter (wraps)
+  render();
 }
 
 function backspace(){
   if(gameOver) return;
-  const i = cursor - 1;
-  if(i < 0){ render(); return; }
-  rowData[activeRow][i].typed = '';
-  cursor = i; render();
+  advancedToWordStart = false;
+  const row = rowData[activeRow];
+  if(row[cursor].typed){          // a letter is selected — clear it, then step back
+    row[cursor].typed = '';
+    cursor = Math.max(0, cursor - 1);
+  } else if(cursor > 0){          // empty cell — clear the previous letter and step onto it
+    cursor--;
+    row[cursor].typed = '';
+  }
+  render();
 }
 
 function evalWord(ans, guess){
@@ -404,7 +430,7 @@ function evalWord(ans, guess){
 function submitGuess(){
   if(gameOver) return;
   const row = rowData[activeRow];
-  if(!row.some(c => c.typed)){ flashShake('Type a guess first.'); return; }
+  if(!row.every(c => c.typed)){ flashShake('Fill in every letter first.'); return; }
 
   const popped = [];
   words.forEach(wb=>{
@@ -468,6 +494,16 @@ function scorecardText(w){
   for(let r=0;r<attempts;r++) lines.push(scoreLine(r));
   return head + '\n\n' + lines.join('\n') + '\n\n' + SITE_URL;
 }
+// the letters actually guessed, one line per guess, words separated by spaces
+function letterLine(r){
+  return words.map(wb => wb.map(bi => rowData[r][bi].typed || '·').join('')).join(' ');
+}
+function letterCardText(w){
+  const head = 'Quotle ' + headTag() + '  ' + scoreLabel(w);
+  const lines = [];
+  for(let r=0;r<attempts;r++) lines.push(letterLine(r));
+  return head + '\n\n' + lines.join('\n') + '\n\n' + SITE_URL;
+}
 function showScorecard(w, scroll){
   lastWon = w;
   const lines = [];
@@ -479,19 +515,20 @@ function showScorecard(w, scroll){
   if(navigator.share) $shareBtn.style.display = '';
   if(scroll !== false) $result.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-async function copyResult(w){
-  const text = scorecardText(w);
+async function copyText(text, note){
   try{
     await navigator.clipboard.writeText(text);
-    $shareNote.textContent = 'Copied to clipboard!';
+    $shareNote.textContent = note;
   }catch(e){
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
-    try{ document.execCommand('copy'); $shareNote.textContent = 'Copied to clipboard!'; }
+    try{ document.execCommand('copy'); $shareNote.textContent = note; }
     catch(_){ $shareNote.textContent = 'Copy failed — select and copy manually.'; }
     document.body.removeChild(ta);
   }
 }
+function copyResult(w){ copyText(scorecardText(w), 'Copied the emoji result!'); }
+function copyLetters(w){ copyText(letterCardText(w), 'Copied your guessed letters!'); }
 
 function endGame(w){
   gameOver = true;
@@ -565,18 +602,22 @@ hidden.addEventListener('input', e=>{
     else if(ch===' ') jumpNextWord();
   }
 });
-hidden.addEventListener('keydown', e=>{
-  if(e.key==='Enter'){ e.preventDefault(); submitGuess(); }
-  else if(e.key==='Backspace'){ e.preventDefault(); backspace(); }
-  else if(e.key===' '){ e.preventDefault(); jumpNextWord(); }
-});
+function handleControlKey(e){
+  if(e.key==='Enter'){ e.preventDefault(); submitGuess(); return true; }
+  if(e.key==='Backspace'){ e.preventDefault(); backspace(); return true; }
+  if(e.key===' '){ e.preventDefault(); jumpNextWord(); return true; }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); moveCursor(-1); return true; }
+  if(e.key==='ArrowRight'){ e.preventDefault(); moveCursor(1); return true; }
+  if(e.key==='Home'){ e.preventDefault(); setCursor(0); return true; }
+  if(e.key==='End'){ e.preventDefault(); setCursor(boxes.length-1); return true; }
+  return false;
+}
+hidden.addEventListener('keydown', handleControlKey);
 document.addEventListener('keydown', e=>{
   if(document.activeElement===hidden) return;
   if(e.metaKey||e.ctrlKey||e.altKey) return;
-  if(e.key==='Enter'){ e.preventDefault(); submitGuess(); }
-  else if(e.key==='Backspace'){ e.preventDefault(); backspace(); }
-  else if(e.key===' '){ e.preventDefault(); jumpNextWord(); }
-  else if(e.key.length===1 && /[a-zA-Z]/.test(e.key)){ typeLetter(e.key); }
+  if(handleControlKey(e)) return;
+  if(e.key.length===1 && /[a-zA-Z]/.test(e.key)){ typeLetter(e.key); }
 });
 $board.addEventListener('click', focusHidden);
 document.body.addEventListener('click', e=>{ if(!e.target.closest('button') && !e.target.closest('details')) focusHidden(); });
@@ -584,6 +625,7 @@ document.body.addEventListener('click', e=>{ if(!e.target.closest('button') && !
 document.getElementById('newBtn').addEventListener('click', startRandom);
 document.getElementById('againBtn').addEventListener('click', startRandom);
 $copyBtn.addEventListener('click', ()=> copyResult(lastWon));
+document.getElementById('copyLettersBtn').addEventListener('click', ()=> copyLetters(lastWon));
 $shareBtn.addEventListener('click', async ()=>{
   try{ await navigator.share({ title:'Quotle', text: scorecardText(lastWon) }); }
   catch(e){ /* cancelled */ }
