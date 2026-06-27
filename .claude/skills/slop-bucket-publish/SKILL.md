@@ -144,23 +144,57 @@ intro), then a numbered list of the project's pages **in order**, each linking t
 file with a one-line description, plus a "Back to the Slop-Bucket" link to `../../`.
 Skip the hub only for a single-page project (the page itself is `index.html`).
 
+## Branch workflow (ALWAYS — never build on `main`)
+
+`main` is the live site, so **every** new project, page, or change is built on a
+**dev branch** and only reaches `main` after the user has previewed and approved it.
+The flow is always: branch off `main` → commit & push the dev branch → present a
+preview link → **wait for approval** → merge to `main` → delete the dev branch.
+
+Do NOT merge to `main` or delete the dev branch until the user has explicitly
+approved the preview. If they ask for changes, keep iterating on the same dev
+branch (new commits, new preview link) until they approve.
+
 ## Procedure
 
-1. **Pull latest** (run from the repo clone): `git pull --rebase --autostash`
+1. **Pull latest & branch off `main`** (run from the repo clone):
+   ```
+   git checkout main
+   git pull --rebase --autostash
+   git checkout -b dev/<slug>        # build here, never directly on main
+   ```
 2. **Resolve inputs** (see *Inputs* above): files, new-vs-existing project, title, slug, order.
 3. **Create/locate** `projects/<slug>/`. If it exists and this is a new project, confirm add/update.
 4. **Copy** the HTML page(s) in (own filenames for multi-page; supporting assets alongside, relative paths intact).
 5. **Inject the nav strip** into every page per the exact recipe — *always*, including single-page projects (use the single-page breadcrumb form). For multi-page projects this also cross-links siblings; regenerate ALL pages' nav if the page set changed.
 6. **Write/refresh the hub** `index.html` (skip for single-page). Match the reference hub.
 7. **Update `projects.json`** — add/update the entry with its ordered `pages` array; keep valid JSON; date = today.
-8. **Commit & push:**
+8. **Commit & push the dev branch:**
    ```
    git add -A
    git commit -m "Publish <slug>"
-   git push
+   git push -u origin dev/<slug>
    ```
-9. **Verify live** (Pages rebuilds in ~1 min): GET the project URL + one inner page and confirm HTTP 200.
-10. **Report** the project URL: `https://weesechedge.github.io/Slop-Bucket/projects/<slug>/`
+9. **Present a preview link and wait for approval.** The dev branch is not on the
+   live site (Pages only serves `main`), so share a raw.githack.com preview built
+   from the **commit SHA** (use the SHA, not the branch name — a `/` in the branch
+   name breaks the githack URL):
+   `https://raw.githack.com/weesechedge/Slop-Bucket/<commit-sha>/projects/<slug>/index.html`
+   Ask the user to test it. Iterate on the same branch until they approve.
+10. **On approval, merge to `main` and push:**
+    ```
+    git checkout main
+    git pull --rebase --autostash
+    git merge --no-ff dev/<slug> -m "Merge <slug>"
+    git push -u origin main
+    ```
+11. **Verify live** (Pages rebuilds in ~1 min): GET the project URL + one inner page and confirm HTTP 200.
+12. **Report** the project URL: `https://weesechedge.github.io/Slop-Bucket/projects/<slug>/`
+13. **Delete the dev branch** (only after it's merged):
+    ```
+    git branch -d dev/<slug>
+    git push origin --delete dev/<slug>
+    ```
 
 ## Notes
 
