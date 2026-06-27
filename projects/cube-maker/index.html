@@ -189,6 +189,14 @@
     text-align: center;
     min-height: 14px;
   }
+  .estimate {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.64rem;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+  .estimate b { color: var(--ink); font-weight: 600; }
 
   .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
   .result.show { display: flex; }
@@ -276,12 +284,22 @@
     </div>
 
     <div class="row">
+      <div class="label">Frame rate</div>
+      <div class="slider-row">
+        <input type="range" id="fps" min="10" max="50" step="1" value="24">
+        <div class="val" id="fpsVal">24 fps</div>
+      </div>
+    </div>
+
+    <div class="row">
       <div class="label">Export background</div>
       <div class="seg" id="bgSeg">
         <button data-bg="dark">Dark</button>
         <button class="on" data-bg="transparent">Transparent</button>
       </div>
     </div>
+
+    <div class="estimate" id="estimate">estimated size · <b>—</b></div>
 
     <button class="export" id="export" disabled>EXPORT GIF</button>
 
@@ -315,6 +333,9 @@ const shapeSeg = document.getElementById('shapeSeg');
 const bgSeg = document.getElementById('bgSeg');
 const durSlider = document.getElementById('dur');
 const durVal = document.getElementById('durVal');
+const fpsSlider = document.getElementById('fps');
+const fpsVal = document.getElementById('fpsVal');
+const estimateEl = document.getElementById('estimate');
 const progress = document.getElementById('progress');
 const bar = document.getElementById('bar');
 const result = document.getElementById('result');
@@ -332,6 +353,12 @@ let bgMode = 'transparent'; // 'dark' | 'transparent' — exported gif backgroun
    colour (and blank face areas show it too), then gif.js keys it out to GIF
    transparency. Vivid magenta so it almost never collides with image content. */
 const CHROMA_KEY = 0xff00ff;
+
+/* Bytes-per-frame used for the live size estimate. GIF size is heavily
+   content-dependent, so we start with a rough guess and then recalibrate from
+   the real byte size of each export — estimates get accurate after one render. */
+const DEFAULT_BYTES_PER_FRAME = 14000;
+let bytesPerFrame = DEFAULT_BYTES_PER_FRAME;
 
 /* animated-gif decode state (populated only when a multi-frame gif is uploaded) */
 let isGif = false;          // true when the upload is an animated (>1 frame) gif
@@ -357,6 +384,8 @@ function loadImage(file) {
 
   // reset any previous gif state — a plain image export should stay static
   isGif = false; gifFrames = null; gifDuration = 0;
+  // each image compresses differently, so drop back to the rough estimate
+  bytesPerFrame = DEFAULT_BYTES_PER_FRAME;
 
   imageEl = new Image();
   imageEl.onload = () => {
@@ -368,6 +397,7 @@ function loadImage(file) {
       exportBtn.disabled = false;
       result.classList.remove('show');
       statusEl.textContent = 'ready';
+      updateEstimate();
       startPreview();
       if (file.type === 'image/gif') decodeGif(file);
     } catch (err) {
@@ -545,6 +575,7 @@ async function decodeGif(file) {
       gifDuration = built.reduce((s, f) => s + f.delay, 0);
       isGif = true;
       statusEl.textContent = `ready · gif · ${built.length} frames embedded`;
+      updateEstimate();   // cycle-snapping changes the export frame count
     } else {
       statusEl.textContent = 'ready';
     }
@@ -620,7 +651,37 @@ bgSeg.addEventListener('click', e => {
 
 durSlider.addEventListener('input', () => {
   durVal.textContent = parseFloat(durSlider.value).toFixed(1) + ' s';
+  updateEstimate();
 });
+
+fpsSlider.addEventListener('input', () => {
+  fpsVal.textContent = fpsSlider.value + ' fps';
+  updateEstimate();
+});
+
+/* ---------- export size estimate ---------- */
+// The actual export duration: when a gif is embedded it snaps to whole gif
+// cycles, so mirror that here for an accurate frame count.
+function exportDuration() {
+  let duration = parseFloat(durSlider.value);
+  if (isGif && gifDuration > 0) {
+    const cycles = Math.max(1, Math.round(duration * 1000 / gifDuration));
+    duration = cycles * gifDuration / 1000;
+  }
+  return duration;
+}
+function exportFrameCount() {
+  return Math.round(parseInt(fpsSlider.value, 10) * exportDuration());
+}
+function formatBytes(b) {
+  return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
+                      : Math.max(1, Math.round(b / 1024)) + ' KB';
+}
+function updateEstimate() {
+  const frames = exportFrameCount();
+  const est = frames * bytesPerFrame;
+  estimateEl.innerHTML = `estimated size · <b>~${formatBytes(est)}</b> · ${frames} frames @ ${fpsSlider.value}fps`;
+}
 
 /* ---------- rotation math (drives both the preview and the export) ---------- */
 function rotationAt(anim, t) {
@@ -821,7 +882,7 @@ exportBtn.addEventListener('click', async () => {
     const exportCanvas = transparent ? transCanvas : glcanvas;
     const workerURL = await getWorkerURL();
 
-    const fps = 24;
+    const fps = parseInt(fpsSlider.value, 10);
     let duration = parseFloat(durSlider.value);
     // When a gif is embedded, snap the loop length to a whole number of gif
     // cycles (nearest to the requested duration, min 1) so the embedded gif
@@ -878,6 +939,10 @@ exportBtn.addEventListener('click', async () => {
       dl.download = currentShape === 'd20' ? 'd20.gif' : 'cube.gif';
       result.classList.add('show');
       progress.classList.remove('show');
+      // Calibrate the estimator from this real result so future estimates for
+      // the same image are accurate, then refresh the displayed estimate.
+      if (total > 0) bytesPerFrame = blob.size / total;
+      updateEstimate();
       const kb = (blob.size/1024).toFixed(0);
       const loopNote = isGif ? ` · ${duration.toFixed(1)}s · ${gifCycles}× gif loop` : '';
       const bgNote = transparent ? ' · transparent' : '';
