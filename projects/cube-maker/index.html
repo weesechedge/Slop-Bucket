@@ -148,6 +148,14 @@
   }
   .slider-row { display: flex; align-items: center; gap: 12px; }
   input[type=range] { flex: 1; accent-color: var(--accent); }
+  .mini {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    min-width: 54px;
+  }
   .val {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
@@ -197,6 +205,38 @@
     letter-spacing: 0.04em;
   }
   .estimate b { color: var(--ink); font-weight: 600; }
+
+  .warning {
+    display: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #ffc9bb;
+    background: rgba(255,94,58,0.10);
+    border: 1px solid rgba(255,94,58,0.40);
+    border-radius: 8px;
+    padding: 9px 12px;
+    text-align: center;
+    line-height: 1.5;
+    animation: warnPulse 2.4s ease-in-out infinite;
+  }
+  .warning.show { display: block; }
+  @keyframes warnPulse {
+    0%, 100% { border-color: rgba(255,94,58,0.30); }
+    50%      { border-color: rgba(255,94,58,0.75); }
+  }
+  .warning.serious {
+    color: #ffb0b0;
+    background: rgba(220,40,40,0.12);
+    border-color: rgba(220,40,40,0.5);
+    animation: seriousPulse 1.5s ease-in-out infinite;
+  }
+  .warning.serious b { color: #ff6b6b; font-weight: 800; letter-spacing: 0.16em; }
+  @keyframes seriousPulse {
+    0%, 100% { border-color: rgba(220,40,40,0.35); }
+    50%      { border-color: rgba(220,40,40,0.95); }
+  }
 
   .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
   .result.show { display: flex; }
@@ -257,12 +297,15 @@
     <canvas id="preview" width="600" height="600"></canvas>
   </div>
 
+  <div class="warning" id="hyperWarning">⚠ hypercube mode engaged · humans weren't meant to see this</div>
+
   <div class="panel">
     <div class="row">
       <div class="label">Shape</div>
       <div class="seg" id="shapeSeg">
         <button class="on" data-shape="cube">Cube</button>
         <button data-shape="d20">D20</button>
+        <button data-shape="hypercube">Hypercube</button>
       </div>
     </div>
 
@@ -270,9 +313,20 @@
       <div class="label">Animation</div>
       <div class="seg" id="seg">
         <button class="on" data-anim="dynamic">Dynamic</button>
-        <button data-anim="slow">Slow</button>
         <button data-anim="tumble">Tumble</button>
+        <button data-anim="custom">Custom</button>
       </div>
+    </div>
+
+    <div class="row" id="customControls" style="display:none">
+      <div class="warning serious show">⚠ <b>Serious warning</b> · some custom settings may cause dizziness</div>
+      <div class="label">Custom rotation · turns per loop</div>
+      <div class="slider-row"><span class="mini">X turns</span><input type="range" id="turnX" min="0" max="4" step="1" value="1"><div class="val" id="turnXVal">1</div></div>
+      <div class="slider-row"><span class="mini">Y turns</span><input type="range" id="turnY" min="0" max="4" step="1" value="1"><div class="val" id="turnYVal">1</div></div>
+      <div class="slider-row"><span class="mini">Z turns</span><input type="range" id="turnZ" min="0" max="4" step="1" value="0"><div class="val" id="turnZVal">0</div></div>
+      <div class="slider-row"><span class="mini">Wobble</span><input type="range" id="wobble" min="0" max="360" step="1" value="0"><div class="val" id="wobbleVal">0°</div></div>
+      <div class="slider-row"><span class="mini">Wobble undulation</span><input type="range" id="wobbleUnd" min="0" max="360" step="1" value="0"><div class="val" id="wobbleUndVal">0°</div></div>
+      <div class="slider-row"><span class="mini">Undulation time</span><input type="range" id="undTime" min="1" max="10" step="0.5" value="3"><div class="val" id="undTimeVal">3.0 s</div></div>
     </div>
 
     <div class="row">
@@ -336,6 +390,20 @@ const durVal = document.getElementById('durVal');
 const fpsSlider = document.getElementById('fps');
 const fpsVal = document.getElementById('fpsVal');
 const estimateEl = document.getElementById('estimate');
+const customControls = document.getElementById('customControls');
+const turnX = document.getElementById('turnX');
+const turnY = document.getElementById('turnY');
+const turnZ = document.getElementById('turnZ');
+const wobbleSlider = document.getElementById('wobble');
+const wobbleUndSlider = document.getElementById('wobbleUnd');
+const undTimeSlider = document.getElementById('undTime');
+const turnXVal = document.getElementById('turnXVal');
+const turnYVal = document.getElementById('turnYVal');
+const turnZVal = document.getElementById('turnZVal');
+const wobbleVal = document.getElementById('wobbleVal');
+const wobbleUndVal = document.getElementById('wobbleUndVal');
+const undTimeVal = document.getElementById('undTimeVal');
+const hyperWarning = document.getElementById('hyperWarning');
 const progress = document.getElementById('progress');
 const bar = document.getElementById('bar');
 const result = document.getElementById('result');
@@ -346,8 +414,35 @@ const statusEl = document.getElementById('status');
 let imageURL = null;
 let imageEl = null;
 let currentAnim = 'dynamic';
-let currentShape = 'cube';  // 'cube' | 'd20'
+let currentShape = 'cube';  // 'cube' | 'd20' | 'hypercube'
 let bgMode = 'transparent'; // 'dark' | 'transparent' — exported gif background
+
+/* Each animation is a set of whole-number "turns per loop" on three axes plus a
+   small wobble. Integer turns guarantee the gif loops seamlessly (the shape ends
+   exactly where it started). Preview and export both read these same params, so
+   the exported gif always matches the animation shown in the display box. */
+const ANIM_PRESETS = {
+  dynamic: { turnsX: 1, turnsY: 1, turnsZ: 0, wobble: 15 },
+  tumble:  { turnsX: 2, turnsY: 3, turnsZ: 1, wobble: 0  },
+};
+function activeParams() {
+  if (currentAnim === 'custom') {
+    // The wobble amplitude itself undulates over ~undTime seconds. To keep the
+    // gif seamless, snap that to a whole number of undulations per loop (so the
+    // amplitude returns to its starting value at the loop seam).
+    const loopLen = parseFloat(durSlider.value);
+    const undTime = parseFloat(undTimeSlider.value);
+    return {
+      turnsX: parseInt(turnX.value, 10),
+      turnsY: parseInt(turnY.value, 10),
+      turnsZ: parseInt(turnZ.value, 10),
+      wobble: parseInt(wobbleSlider.value, 10),
+      wobbleUndulation: parseInt(wobbleUndSlider.value, 10),
+      undulationCycles: Math.max(1, Math.round(loopLen / undTime)),
+    };
+  }
+  return ANIM_PRESETS[currentAnim] || ANIM_PRESETS.dynamic;
+}
 
 /* Chroma key used for transparent export: the export is rendered against this
    colour (and blank face areas show it too), then gif.js keys it out to GIF
@@ -364,9 +459,6 @@ let bytesPerFrame = DEFAULT_BYTES_PER_FRAME;
 let isGif = false;          // true when the upload is an animated (>1 frame) gif
 let gifFrames = null;       // [{ canvas, delay(ms) }] fully-composited frames
 let gifDuration = 0;        // total loop length of the source gif, ms
-
-/* spin period per animation (ms) — one full loop of the preview */
-const animPeriod = { dynamic: 8000, slow: 20000, tumble: 6000 };
 
 /* live-preview loop state */
 let previewRunning = false;
@@ -626,11 +718,32 @@ fileInput.addEventListener('change', e => loadImage(e.target.files[0]));
 drop.addEventListener('drop', e => loadImage(e.dataTransfer.files[0]));
 
 /* ---------- live preview controls ---------- */
+function refreshCustomLabels() {
+  turnXVal.textContent = turnX.value;
+  turnYVal.textContent = turnY.value;
+  turnZVal.textContent = turnZ.value;
+  wobbleVal.textContent = wobbleSlider.value + '°';
+  wobbleUndVal.textContent = wobbleUndSlider.value + '°';
+  undTimeVal.textContent = parseFloat(undTimeSlider.value).toFixed(1) + ' s';
+}
+function syncCustomSliders(p) {
+  turnX.value = p.turnsX;
+  turnY.value = p.turnsY;
+  turnZ.value = p.turnsZ;
+  wobbleSlider.value = p.wobble;
+  wobbleUndSlider.value = p.wobbleUndulation || 0;  // presets don't undulate
+  refreshCustomLabels();
+}
 seg.addEventListener('click', e => {
   if (e.target.tagName !== 'BUTTON') return;
+  const prev = currentAnim;
   currentAnim = e.target.dataset.anim;
   seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
   e.target.classList.add('on');
+  // Entering custom from a preset: seed the sliders with that preset's values so
+  // the motion carries over instead of jumping.
+  if (currentAnim === 'custom' && ANIM_PRESETS[prev]) syncCustomSliders(ANIM_PRESETS[prev]);
+  customControls.style.display = currentAnim === 'custom' ? 'flex' : 'none';
   previewStart = performance.now();   // restart the loop cleanly on the new path
 });
 
@@ -639,8 +752,13 @@ shapeSeg.addEventListener('click', e => {
   currentShape = e.target.dataset.shape;
   shapeSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
   e.target.classList.add('on');
-  if (imageEl) buildMesh();           // swap cube ↔ d20 geometry live
+  hyperWarning.classList.toggle('show', currentShape === 'hypercube');
+  if (imageEl) buildMesh();           // swap geometry live
 });
+
+// Custom rotation sliders feed activeParams() directly; just refresh the labels.
+[turnX, turnY, turnZ, wobbleSlider, wobbleUndSlider, undTimeSlider].forEach(
+  s => s.addEventListener('input', refreshCustomLabels));
 
 bgSeg.addEventListener('click', e => {
   if (e.target.tagName !== 'BUTTON') return;
@@ -683,34 +801,85 @@ function updateEstimate() {
   estimateEl.innerHTML = `estimated size · <b>~${formatBytes(est)}</b> · ${frames} frames @ ${fpsSlider.value}fps`;
 }
 
-/* ---------- rotation math (drives both the preview and the export) ---------- */
-function rotationAt(anim, t) {
-  // t in [0,1]; returns {x,y,z} radians
-  const TAU = Math.PI * 2;
-  if (anim === 'slow') {
-    return { x: t*TAU, y: t*TAU, z: 0 };
+/* ---------- rotation math (drives both the preview and the export) ----------
+   t in [0,1] is the fraction through one loop. For the 3D shapes the params are
+   turns about the X/Y/Z axes; the wobble is a seamless z oscillation (sin → 0 at
+   the loop seam). Integer turns keep the loop seamless. */
+const TAU = Math.PI * 2;
+function rotationAt(params, t) {
+  // The wobble amplitude can itself undulate around its set value, e.g. wobble
+  // 30° ± an undulation of 10° → it breathes between 20° and 40°. undulationCycles
+  // whole cycles per loop keeps it seamless. The base wobble is sin(t·TAU), which
+  // is 0 at the loop seam, so z returns to a whole turn there regardless.
+  const undAmp = params.wobbleUndulation || 0;
+  const undCycles = params.undulationCycles || 1;
+  const effWobble = params.wobble + undAmp * Math.sin(undCycles * t * TAU);
+  return {
+    x: params.turnsX * t * TAU,
+    y: params.turnsY * t * TAU,
+    z: params.turnsZ * t * TAU + effWobble * Math.sin(t * TAU) * Math.PI / 180,
+  };
+}
+
+/* ---------- hypercube (tesseract) ---------- */
+// 24 square faces: pick 2 free axes that vary over ±1, fix the other 2 at ±1.
+const HYPER_FACES = (() => {
+  const axes = [0, 1, 2, 3], faces = [];
+  for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) {
+    const others = axes.filter(x => x !== a && x !== b);
+    for (const sa of [-1, 1]) for (const sb of [-1, 1]) {
+      faces.push([[-1,-1],[1,-1],[1,1],[-1,1]].map(([fa, fb]) => {
+        const v = [0, 0, 0, 0];
+        v[a] = fa; v[b] = fb; v[others[0]] = sa; v[others[1]] = sb;
+        return v;
+      }));
+    }
   }
-  if (anim === 'tumble') {
-    const waypoints = [
-      {x:0,   y:0,   z:0},
-      {x:72,  y:144, z:36},
-      {x:144, y:72,  z:-20},
-      {x:216, y:288, z:25},
-      {x:288, y:180, z:-15},
-      {x:360, y:360, z:0},
-    ];
-    const f = t * 5; const i = Math.min(4, Math.floor(f)); const k = f - i;
-    const a = waypoints[i], b = waypoints[i+1];
-    const lerp = (p,q)=> (p + (q-p)*k) * Math.PI/180;
-    return { x: lerp(a.x,b.x), y: lerp(a.y,b.y), z: lerp(a.z,b.z) };
+  return faces;
+})();
+
+// Rotate a 4-vector in the three planes that involve W. These are the true 4D
+// rotations — they "morph" the projected shape (the signature tesseract inner-
+// cube turning through itself). Rotations within X/Y/Z are handled in 3D below.
+function rotate4(v, ang) {
+  let [x, y, z, w] = v, c, s, n;
+  if (ang.xw) { c = Math.cos(ang.xw); s = Math.sin(ang.xw); n = x*c - w*s; w = x*s + w*c; x = n; }
+  if (ang.yw) { c = Math.cos(ang.yw); s = Math.sin(ang.yw); n = y*c - w*s; w = y*s + w*c; y = n; }
+  if (ang.zw) { c = Math.cos(ang.zw); s = Math.sin(ang.zw); n = z*c - w*s; w = z*s + w*c; z = n; }
+  return [x, y, z, w];
+}
+// Perspective-project 4D→3D (points with larger w sit "nearer" in 4D and grow).
+const HYPER_D4 = 3.5, HYPER_SCALE = 2.48;   // scale fills the frame like the cube/d20
+function project4to3(v) {
+  const k = HYPER_SCALE / (HYPER_D4 - v[3]);
+  return [v[0] * k, v[1] * k, v[2] * k];
+}
+// Fixed 4D morph (whole turns per loop, so it loops seamlessly). This is the
+// "hypercube-ness"; the selected animation tumbles the projected result in 3D.
+const HYPER_MORPH = { xw: 1, yw: 1 };
+// Recompute every face vertex for time t and push into the live position buffer.
+function updateHyperGeometry(t) {
+  const arr = mesh.geometry.attributes.position.array;
+  const ang = { xw: HYPER_MORPH.xw * t * TAU, yw: HYPER_MORPH.yw * t * TAU, zw: 0 };
+  let vi = 0;
+  for (const face of HYPER_FACES) {
+    const p = face.map(v => project4to3(rotate4(v, ang)));
+    for (const idx of [0, 1, 2, 0, 2, 3]) {   // two triangles per square
+      arr[vi++] = p[idx][0]; arr[vi++] = p[idx][1]; arr[vi++] = p[idx][2];
+    }
   }
-  // dynamic
-  let z;
-  if (t < 0.25)      z = 15 * (t/0.25);
-  else if (t < 0.5)  z = 15 * (1-(t-0.25)/0.25);
-  else if (t < 0.75) z = -15 * ((t-0.5)/0.25);
-  else               z = -15 * (1-(t-0.75)/0.25);
-  return { x: t*TAU, y: t*TAU, z: z*Math.PI/180 };
+  mesh.geometry.attributes.position.needsUpdate = true;
+}
+
+// Apply the current animation at loop-fraction t. Every shape — including the
+// hypercube — tumbles in 3D via the same params, so all shapes share the
+// selected animation. The hypercube additionally re-projects its 4D morph.
+function applyAnimation(t) {
+  if (!mesh) return;
+  const p = activeParams();
+  if (currentShape === 'hypercube') updateHyperGeometry(t);
+  const r = rotationAt(p, t);
+  mesh.rotation.set(r.x, r.y, r.z);
 }
 
 /* ---------- WebGL setup for export ---------- */
@@ -816,7 +985,18 @@ function buildMesh() {
   // Flat & unlit (no shading change as it rotates). transparent:true lets the
   // image's blank/transparent areas show the background through, so a blank
   // cube blends perfectly with the backdrop in both the preview and the export.
-  const mat = new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true });
+  // The hypercube self-overlaps (it's a 4D projection), so it needs both sides
+  // drawn; the convex cube/d20 only need their front faces.
+  const isHyper = currentShape === 'hypercube';
+  const mat = new THREE.MeshBasicMaterial({
+    map: faceTexture,
+    transparent: true,
+    side: isHyper ? THREE.DoubleSide : THREE.FrontSide,
+    // The hypercube's 24 faces overlap as they sweep through 4D; writing depth
+    // would make them pop in and out of occlusion (jank). Skipping depth writes
+    // blends them in a stable order, so the morph reads as a smooth glassy spin.
+    depthWrite: !isHyper,
+  });
 
   let geo;
   if (currentShape === 'd20') {
@@ -824,12 +1004,36 @@ function buildMesh() {
     // frame just as fully as the cube (in both preview and gif export).
     geo = new THREE.IcosahedronGeometry(Math.sqrt(3), 0);
     applyTriUVs(geo);
+  } else if (currentShape === 'hypercube') {
+    geo = buildHyperGeometry();
   } else {
     geo = new THREE.BoxGeometry(2, 2, 2);
   }
   mesh = new THREE.Mesh(geo, mat);
+  // Hypercube vertices are rewritten every frame, so skip frustum culling (its
+  // bounding sphere would be stale) and seed the positions for the static preview.
+  if (isHyper) {
+    mesh.frustumCulled = false;
+    updateHyperGeometry(0);
+  }
   // No edge lines — the image/gif should cover each face edge to edge.
   threeScene.add(mesh);
+}
+
+/* Build the tesseract geometry: 24 quad faces → 144 verts. Positions are filled
+   per frame by updateHyperGeometry; UVs are static (the full image per face). */
+function buildHyperGeometry() {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(HYPER_FACES.length * 6 * 3);
+  const uv = new Float32Array(HYPER_FACES.length * 6 * 2);
+  const triUV = [[0,0],[1,0],[1,1], [0,0],[1,1],[0,1]];
+  let u = 0;
+  for (let f = 0; f < HYPER_FACES.length; f++) {
+    for (const [a, b] of triUV) { uv[u++] = a; uv[u++] = b; }
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return geo;
 }
 
 /* ---------- live preview loop ---------- */
@@ -843,11 +1047,12 @@ function stopPreview() { previewRunning = false; }
 
 function previewTick(now) {
   if (!previewRunning) return;
-  const period = animPeriod[currentAnim] || 8000;
+  // One loop takes the chosen loop length, so the preview spins at exactly the
+  // speed the exported gif will — the display box is a true preview of the gif.
+  const period = parseFloat(durSlider.value) * 1000;
   const elapsed = now - previewStart;
   const t = (elapsed % period) / period;
-  const r = rotationAt(currentAnim, t);
-  if (mesh) mesh.rotation.set(r.x, r.y, r.z);
+  applyAnimation(t);
   // Static images are painted once in buildMesh; only animated gifs need a
   // fresh texture frame each tick. (drawTextureFrame wraps the time itself.)
   if (isGif && gifFrames) drawTextureFrame(elapsed);
@@ -910,8 +1115,7 @@ exportBtn.addEventListener('click', async () => {
     // render frames sequentially, yielding so UI can update
     for (let i = 0; i < total; i++) {
       const t = i / total;
-      const r = rotationAt(currentAnim, t);
-      mesh.rotation.set(r.x, r.y, r.z);
+      applyAnimation(t);   // same params as the live preview → export matches it
       // Drive the gif so gifCycles full plays span the export — it lands exactly
       // on a cycle boundary at the loop seam. (drawTextureFrame wraps the time.)
       drawTextureFrame(t * gifCycles * gifDuration);
@@ -936,7 +1140,7 @@ exportBtn.addEventListener('click', async () => {
       outImg.src = url;
       outImg.alt = `spinning ${currentShape} gif`;
       dl.href = url;
-      dl.download = currentShape === 'd20' ? 'd20.gif' : 'cube.gif';
+      dl.download = `${currentShape}.gif`;
       result.classList.add('show');
       progress.classList.remove('show');
       // Calibrate the estimator from this real result so future estimates for
