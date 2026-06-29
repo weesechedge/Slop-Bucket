@@ -348,8 +348,8 @@
     <div class="row">
       <div class="label">Export background</div>
       <div class="seg" id="bgSeg">
-        <button data-bg="dark">Dark</button>
-        <button class="on" data-bg="transparent">Transparent</button>
+        <button class="on" data-bg="dark">Dark</button>
+        <button data-bg="transparent">Transparent</button>
       </div>
     </div>
 
@@ -415,7 +415,7 @@ let imageURL = null;
 let imageEl = null;
 let currentAnim = 'dynamic';
 let currentShape = 'cube';  // 'cube' | 'd20' | 'hypercube'
-let bgMode = 'transparent'; // 'dark' | 'transparent' — exported gif background
+let bgMode = 'dark'; // 'dark' | 'transparent' — exported gif background
 
 /* Each animation is a set of whole-number "turns per loop" on three axes plus a
    small wobble. Integer turns guarantee the gif loops seamlessly (the shape ends
