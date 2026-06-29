@@ -226,6 +226,17 @@
     0%, 100% { border-color: rgba(255,94,58,0.30); }
     50%      { border-color: rgba(255,94,58,0.75); }
   }
+  .warning.serious {
+    color: #ffb0b0;
+    background: rgba(220,40,40,0.12);
+    border-color: rgba(220,40,40,0.5);
+    animation: seriousPulse 1.5s ease-in-out infinite;
+  }
+  .warning.serious b { color: #ff6b6b; font-weight: 800; letter-spacing: 0.16em; }
+  @keyframes seriousPulse {
+    0%, 100% { border-color: rgba(220,40,40,0.35); }
+    50%      { border-color: rgba(220,40,40,0.95); }
+  }
 
   .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
   .result.show { display: flex; }
@@ -308,6 +319,7 @@
     </div>
 
     <div class="row" id="customControls" style="display:none">
+      <div class="warning serious show">⚠ <b>Serious warning</b> · some custom settings may cause dizziness</div>
       <div class="label">Custom rotation · turns per loop</div>
       <div class="slider-row"><span class="mini">X turns</span><input type="range" id="turnX" min="0" max="4" step="1" value="1"><div class="val" id="turnXVal">1</div></div>
       <div class="slider-row"><span class="mini">Y turns</span><input type="range" id="turnY" min="0" max="4" step="1" value="1"><div class="val" id="turnYVal">1</div></div>
