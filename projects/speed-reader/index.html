@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RSVP Reader</title>
+<title>Speed Reader</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -411,13 +411,13 @@
 </style>
 </head>
 <body>
-<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">RSVP Reader</span></nav>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Speed Reader</span></nav>
 
 <div class="container">
   <div class="header">
-    <span class="header-title">RSVP</span>
+    <span class="header-title">Speed Reader</span>
     <span class="header-dot">•</span>
-    <span class="header-sub">RAPID SERIAL VISUAL PRESENTATION</span>
+    <span class="header-sub">RSVP METHOD · RAPID SERIAL VISUAL PRESENTATION</span>
   </div>
 
   <div class="status-bar">
@@ -522,7 +522,7 @@
 
 <script>
 (() => {
-  const SAMPLE_TEXT = `Hello and welcome to the RSVP Reader. To get started, click the TEXT button below and paste any text you would like to speed read. This tool uses Rapid Serial Visual Presentation to help you read faster by displaying words one at a time at a fixed focal point. Your eyes stay still while the words come to you, eliminating the saccadic eye movements that slow down traditional reading. Use the controls to adjust your reading speed in words per minute. The highlighted letter in each word marks the Optimal Recognition Point, the position where your brain most efficiently processes the word. Try starting at 300 words per minute and gradually increasing as you get comfortable. You can pause at any time with the spacebar and use the arrow keys to skip forward or back. Happy reading.`;
+  const SAMPLE_TEXT = `Hello and welcome to Speed Reader. To get started, click the TEXT button below and paste any text you would like to speed read. This tool uses Rapid Serial Visual Presentation to help you read faster by displaying words one at a time at a fixed focal point. Your eyes stay still while the words come to you, eliminating the saccadic eye movements that slow down traditional reading. Use the controls to adjust your reading speed in words per minute. The highlighted letter in each word marks the Optimal Recognition Point, the position where your brain most efficiently processes the word. Try starting at 300 words per minute and gradually increasing as you get comfortable. You can pause at any time with the spacebar and use the arrow keys to skip forward or back. Happy reading.`;
 
   function getORP(word) {
     const clean = word.replace(/[^a-zA-Z0-9\u00C0-\u024F]/g, "");
