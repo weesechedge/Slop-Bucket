@@ -279,7 +279,6 @@
       <div class="label">Animation</div>
       <div class="seg" id="seg">
         <button class="on" data-anim="dynamic">Dynamic</button>
-        <button data-anim="slow">Slow</button>
         <button data-anim="tumble">Tumble</button>
         <button data-anim="custom">Custom</button>
       </div>
@@ -382,7 +381,6 @@ let bgMode = 'transparent'; // 'dark' | 'transparent' — exported gif backgroun
    the exported gif always matches the animation shown in the display box. */
 const ANIM_PRESETS = {
   dynamic: { turnsX: 1, turnsY: 1, turnsZ: 0, wobble: 15 },
-  slow:    { turnsX: 0, turnsY: 1, turnsZ: 0, wobble: 0  },
   tumble:  { turnsX: 2, turnsY: 3, turnsZ: 1, wobble: 0  },
 };
 function activeParams() {
@@ -777,34 +775,29 @@ const HYPER_FACES = (() => {
   return faces;
 })();
 
-// Rotate a 4-vector in the XW, YZ, ZW and XY planes. The XW/ZW (4D) rotations
-// give the signature tesseract "inner cube turning through itself" effect.
+// Rotate a 4-vector in the three planes that involve W. These are the true 4D
+// rotations — they "morph" the projected shape (the signature tesseract inner-
+// cube turning through itself). Rotations within X/Y/Z are handled in 3D below.
 function rotate4(v, ang) {
   let [x, y, z, w] = v, c, s, n;
   if (ang.xw) { c = Math.cos(ang.xw); s = Math.sin(ang.xw); n = x*c - w*s; w = x*s + w*c; x = n; }
-  if (ang.yz) { c = Math.cos(ang.yz); s = Math.sin(ang.yz); n = y*c - z*s; z = y*s + z*c; y = n; }
+  if (ang.yw) { c = Math.cos(ang.yw); s = Math.sin(ang.yw); n = y*c - w*s; w = y*s + w*c; y = n; }
   if (ang.zw) { c = Math.cos(ang.zw); s = Math.sin(ang.zw); n = z*c - w*s; w = z*s + w*c; z = n; }
-  if (ang.xy) { c = Math.cos(ang.xy); s = Math.sin(ang.xy); n = x*c - y*s; y = x*s + y*c; x = n; }
   return [x, y, z, w];
 }
 // Perspective-project 4D→3D (points with larger w sit "nearer" in 4D and grow).
-const HYPER_D4 = 3.5, HYPER_SCALE = 2.3;   // tuned so the projection fits the frame
+const HYPER_D4 = 3.5, HYPER_SCALE = 2.48;   // scale fills the frame like the cube/d20
 function project4to3(v) {
   const k = HYPER_SCALE / (HYPER_D4 - v[3]);
   return [v[0] * k, v[1] * k, v[2] * k];
 }
-function hyperAngles(params, t) {
-  return {
-    xw: params.turnsX * t * TAU,
-    yz: params.turnsY * t * TAU,
-    zw: params.turnsZ * t * TAU,
-    xy: params.wobble * Math.sin(t * TAU) * Math.PI / 180,
-  };
-}
+// Fixed 4D morph (whole turns per loop, so it loops seamlessly). This is the
+// "hypercube-ness"; the selected animation tumbles the projected result in 3D.
+const HYPER_MORPH = { xw: 1, yw: 1 };
 // Recompute every face vertex for time t and push into the live position buffer.
-function updateHyperGeometry(t, params) {
+function updateHyperGeometry(t) {
   const arr = mesh.geometry.attributes.position.array;
-  const ang = hyperAngles(params, t);
+  const ang = { xw: HYPER_MORPH.xw * t * TAU, yw: HYPER_MORPH.yw * t * TAU, zw: 0 };
   let vi = 0;
   for (const face of HYPER_FACES) {
     const p = face.map(v => project4to3(rotate4(v, ang)));
@@ -815,17 +808,15 @@ function updateHyperGeometry(t, params) {
   mesh.geometry.attributes.position.needsUpdate = true;
 }
 
-// Apply the current animation at loop-fraction t — euler rotation for the 3D
-// shapes, live 4D re-projection for the hypercube.
+// Apply the current animation at loop-fraction t. Every shape — including the
+// hypercube — tumbles in 3D via the same params, so all shapes share the
+// selected animation. The hypercube additionally re-projects its 4D morph.
 function applyAnimation(t) {
   if (!mesh) return;
   const p = activeParams();
-  if (currentShape === 'hypercube') {
-    updateHyperGeometry(t, p);
-  } else {
-    const r = rotationAt(p, t);
-    mesh.rotation.set(r.x, r.y, r.z);
-  }
+  if (currentShape === 'hypercube') updateHyperGeometry(t);
+  const r = rotationAt(p, t);
+  mesh.rotation.set(r.x, r.y, r.z);
 }
 
 /* ---------- WebGL setup for export ---------- */
@@ -933,10 +924,15 @@ function buildMesh() {
   // cube blends perfectly with the backdrop in both the preview and the export.
   // The hypercube self-overlaps (it's a 4D projection), so it needs both sides
   // drawn; the convex cube/d20 only need their front faces.
+  const isHyper = currentShape === 'hypercube';
   const mat = new THREE.MeshBasicMaterial({
     map: faceTexture,
     transparent: true,
-    side: currentShape === 'hypercube' ? THREE.DoubleSide : THREE.FrontSide,
+    side: isHyper ? THREE.DoubleSide : THREE.FrontSide,
+    // The hypercube's 24 faces overlap as they sweep through 4D; writing depth
+    // would make them pop in and out of occlusion (jank). Skipping depth writes
+    // blends them in a stable order, so the morph reads as a smooth glassy spin.
+    depthWrite: !isHyper,
   });
 
   let geo;
@@ -953,9 +949,9 @@ function buildMesh() {
   mesh = new THREE.Mesh(geo, mat);
   // Hypercube vertices are rewritten every frame, so skip frustum culling (its
   // bounding sphere would be stale) and seed the positions for the static preview.
-  if (currentShape === 'hypercube') {
+  if (isHyper) {
     mesh.frustumCulled = false;
-    updateHyperGeometry(0, activeParams());
+    updateHyperGeometry(0);
   }
   // No edge lines — the image/gif should cover each face edge to edge.
   threeScene.add(mesh);
