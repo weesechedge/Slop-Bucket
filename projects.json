@@ -50,12 +50,12 @@
       ]
     },
     {
-      "slug": "rsvp-reader",
-      "title": "RSVP Reader",
-      "description": "A speed-reading tool that flashes text one word at a time at a fixed focal point, highlighting each word's optimal recognition point; adjustable WPM, chunk size, sentence-boundary pauses, and keyboard controls.",
+      "slug": "speed-reader",
+      "title": "Speed Reader",
+      "description": "A speed-reading tool that uses the RSVP method to flash text one word at a time at a fixed focal point, highlighting each word's optimal recognition point; adjustable WPM, chunk size, sentence-boundary pauses, and keyboard controls.",
       "tags": ["rsvp", "speed-reading", "reading", "typography", "interactive", "browser", "productivity"],
       "date": "2026-06-08",
-      "path": "projects/rsvp-reader/",
+      "path": "projects/speed-reader/",
       "pages": []
     },
     {
