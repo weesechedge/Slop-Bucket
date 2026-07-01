@@ -342,8 +342,8 @@
 
   <div class="drop" id="drop">
     <div class="icon">⬡</div>
-    <div class="big" id="dropBig">Tap to upload images or gifs</div>
-    <div class="small">or drag &amp; drop · multiple ok · replaces all · one per face</div>
+    <div class="big" id="dropBig">Tap to upload images or GIFs</div>
+    <div class="small">or drag &amp; drop — you can pick several at once, and each one is placed on a different face. This box replaces everything you've uploaded; to add or swap individual images instead, use the panels below.</div>
     <input type="file" id="file" accept="image/*" multiple>
   </div>
 
@@ -550,8 +550,8 @@ let lastOutURL = null;
 function updateDropLabel() {
   const n = mediaItems.length;
   dropBig.textContent = n
-    ? `${n} image${n > 1 ? 's' : ''} loaded · tap to replace`
-    : 'Tap to upload images or gifs';
+    ? `${n} image${n > 1 ? 's' : ''} loaded — tap to replace them all`
+    : 'Tap to upload images or GIFs';
 }
 function updateOverflowWarning() {
   const faces = FACE_COUNTS[currentShape];
@@ -885,6 +885,9 @@ drop.addEventListener('click', () => openPicker('all'));   // main box → repla
 addBtn.addEventListener('click', () => openPicker('add'));
 replaceBtn.addEventListener('click', () => openPicker('replace'));
 removeBtn.addEventListener('click', removeSelected);
+// The hidden input sits inside #drop; stop its programmatic click from bubbling
+// back up to #drop's handler (which would reset the mode to 'all').
+fileInput.addEventListener('click', e => e.stopPropagation());
 fileInput.addEventListener('change', e => loadFiles(e.target.files, uploadMode));
 ['dragover','dragenter'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
