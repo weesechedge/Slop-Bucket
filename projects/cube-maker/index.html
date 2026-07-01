@@ -238,6 +238,60 @@
     50%      { border-color: rgba(220,40,40,0.95); }
   }
 
+  /* Uploaded-image manager */
+  .manage { display: none; flex-direction: column; gap: 10px; }
+  .manage.show { display: flex; }
+  .panels { display: flex; flex-wrap: wrap; gap: 8px; }
+  .thumb {
+    position: relative;
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid var(--line);
+    background: #0a0a0f;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,94,58,0.35); }
+  .thumb .idx {
+    position: absolute; top: 2px; left: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.55rem;
+    color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  }
+  .thumb .gif {
+    position: absolute; bottom: 2px; right: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.5rem; font-weight: 600;
+    color: #fff; background: rgba(255,94,58,0.85);
+    padding: 0 3px; border-radius: 3px;
+  }
+  .thumb .check {
+    position: absolute; top: 2px; right: 3px;
+    width: 15px; height: 15px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 0.62rem; line-height: 15px; text-align: center;
+    display: none;
+  }
+  .thumb.sel .check { display: block; }
+  .panel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mini-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 8px 12px;
+    border-radius: 9px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 700; font-size: 0.74rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mini-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .mini-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .panel-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; color: var(--dim); letter-spacing: 0.04em;
+  }
+
   .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
   .result.show { display: flex; }
   .result img {
@@ -289,8 +343,18 @@
   <div class="drop" id="drop">
     <div class="icon">⬡</div>
     <div class="big" id="dropBig">Tap to upload images or gifs</div>
-    <div class="small">or drag &amp; drop · multiple ok · one per face</div>
+    <div class="small">or drag &amp; drop · multiple ok · replaces all · one per face</div>
     <input type="file" id="file" accept="image/*" multiple>
+  </div>
+
+  <div class="manage" id="manage">
+    <div class="panels" id="panels"></div>
+    <div class="panel-actions">
+      <button class="mini-btn" id="addBtn">＋ Add more</button>
+      <button class="mini-btn" id="replaceBtn" disabled>Replace selected</button>
+      <button class="mini-btn" id="removeBtn" disabled>Remove selected</button>
+    </div>
+    <div class="panel-hint" id="panelHint">tap a panel to select · then replace or remove those · the box above replaces all</div>
   </div>
 
   <div class="stage empty" id="stage">
@@ -407,6 +471,11 @@ const undTimeVal = document.getElementById('undTimeVal');
 const hyperWarning = document.getElementById('hyperWarning');
 const overflowWarning = document.getElementById('overflowWarning');
 const dropBig = document.getElementById('dropBig');
+const manage = document.getElementById('manage');
+const panelsEl = document.getElementById('panels');
+const addBtn = document.getElementById('addBtn');
+const replaceBtn = document.getElementById('replaceBtn');
+const removeBtn = document.getElementById('removeBtn');
 const progress = document.getElementById('progress');
 const bar = document.getElementById('bar');
 const result = document.getElementById('result');
@@ -417,8 +486,9 @@ const statusEl = document.getElementById('status');
 /* Uploaded media, one entry per file: { el:Image, isGif, gifFrames, gifDuration }.
    Distributed across the object's faces (face f shows mediaItems[f % used]), so
    one upload → same image on every face (as before), and up to one per face. */
-let mediaItems = [];
-let mediaURLs = [];         // object URLs to revoke when new files are loaded
+let mediaItems = [];        // each: { el, url, isGif, gifFrames, gifDuration }
+let selectedPanels = new Set();  // indices of panels the user has selected
+let uploadMode = 'all';     // 'all' (main box) | 'add' | 'replace' — set before opening the picker
 let currentAnim = 'dynamic';
 let currentShape = 'cube';  // 'cube' | 'd20' | 'hypercube'
 let bgMode = 'dark'; // 'dark' | 'transparent' — exported gif background
@@ -494,14 +564,15 @@ function updateOverflowWarning() {
   }
 }
 
+function revokeItems(items) { items.forEach(i => { if (i && i.url) URL.revokeObjectURL(i.url); }); }
+
 // Load one file into a media item, decoding animated gifs to frames.
 function loadOneMedia(file) {
   return new Promise(resolve => {
     const url = URL.createObjectURL(file);
-    mediaURLs.push(url);
     const el = new Image();
     el.onload = async () => {
-      const item = { el, isGif: false, gifFrames: null, gifDuration: 0 };
+      const item = { el, url, isGif: false, gifFrames: null, gifDuration: 0 };
       if (file.type === 'image/gif') {
         try {
           const { width: gw, height: gh, frames } = parseGifFrames(await file.arrayBuffer());
@@ -515,42 +586,119 @@ function loadOneMedia(file) {
       }
       resolve(item);
     };
-    el.onerror = () => resolve(null);   // skip files that fail to load
+    el.onerror = () => { URL.revokeObjectURL(url); resolve(null); };  // skip files that fail
     el.src = url;
   });
 }
 
-async function loadImages(fileList) {
+// Merge newly loaded items into mediaItems according to the mode:
+//  'all'     — the main box: replace every image with the new batch
+//  'add'     — append the new batch
+//  'replace' — swap the selected panels for the new batch (inserted at the first
+//              selected position); count can differ (e.g. replace 2 with 3)
+function mergeMedia(newItems, mode) {
+  if (mode === 'add') {
+    mediaItems = mediaItems.concat(newItems);
+  } else if (mode === 'replace' && selectedPanels.size) {
+    const result = [];
+    let injected = false;
+    for (let i = 0; i < mediaItems.length; i++) {
+      if (selectedPanels.has(i)) {
+        if (!injected) { result.push(...newItems); injected = true; }
+        revokeItems([mediaItems[i]]);   // the replaced panel's url is no longer needed
+      } else {
+        result.push(mediaItems[i]);
+      }
+    }
+    mediaItems = result;
+  } else {
+    // 'all' (or 'replace' with nothing selected → treat as replace-all)
+    revokeItems(mediaItems);
+    mediaItems = newItems;
+  }
+}
+
+async function loadFiles(fileList, mode) {
   const files = [...fileList].filter(f => f && f.type.startsWith('image/'));
   if (!files.length) return;
-  mediaURLs.forEach(u => URL.revokeObjectURL(u));
-  mediaURLs = [];
-  bytesPerFrame = DEFAULT_BYTES_PER_FRAME;   // each set compresses differently
   statusEl.textContent = files.length > 1 ? `loading ${files.length} images…` : 'loading…';
+  const newItems = (await Promise.all(files.map(loadOneMedia))).filter(Boolean);
+  if (!newItems.length) { statusEl.textContent = 'error: could not load those images'; return; }
+  mergeMedia(newItems, mode);
+  afterMediaChange();
+  const gifs = mediaItems.filter(m => m.isGif).length;
+  statusEl.textContent = `ready · ${mediaItems.length} image${mediaItems.length > 1 ? 's' : ''}` +
+    (gifs ? ` · ${gifs} gif${gifs > 1 ? 's' : ''} embedded` : '');
+}
+
+// Rebuild everything after the media list changes (load, replace, remove).
+function afterMediaChange() {
+  selectedPanels.clear();
+  bytesPerFrame = DEFAULT_BYTES_PER_FRAME;   // content changed → re-estimate
+  result.classList.remove('show');
+  renderPanels();
+  updateDropLabel();
+  updateOverflowWarning();
+  if (!mediaItems.length) {                  // everything removed → back to empty
+    stopPreview();
+    previewCanvas.style.display = 'none';
+    stage.classList.add('empty');
+    exportBtn.disabled = true;
+    statusEl.textContent = '';
+    return;
+  }
   try {
-    const items = (await Promise.all(files.map(loadOneMedia))).filter(Boolean);
-    if (!items.length) { statusEl.textContent = 'error: could not load those images'; return; }
-    mediaItems = items;
     if (!previewRenderer) initThree();
     buildMesh();
     previewCanvas.style.display = 'block';
     stage.classList.remove('empty');
     exportBtn.disabled = false;
-    result.classList.remove('show');
-    updateDropLabel();
-    updateOverflowWarning();
     updateEstimate();
     startPreview();
-    const gifs = items.filter(m => m.isGif).length;
-    statusEl.textContent = `ready · ${items.length} image${items.length > 1 ? 's' : ''}` +
-      (gifs ? ` · ${gifs} gif${gifs > 1 ? 's' : ''} embedded` : '');
   } catch (err) {
-    // Most likely WebGL is unavailable or the three.js CDN failed to load.
     console.error(err);
     statusEl.textContent = 'error: could not start the renderer (WebGL / CDN unavailable?)';
     exportBtn.disabled = true;
   }
 }
+
+/* ---------- uploaded-image panels ---------- */
+function renderPanels() {
+  manage.classList.toggle('show', mediaItems.length > 0);
+  panelsEl.innerHTML = '';
+  mediaItems.forEach((item, i) => {
+    const t = document.createElement('div');
+    t.className = 'thumb' + (selectedPanels.has(i) ? ' sel' : '');
+    t.innerHTML =
+      `<img src="${item.url}" alt="face image ${i + 1}">` +
+      `<span class="idx">${i + 1}</span>` +
+      (item.isGif ? `<span class="gif">GIF</span>` : '') +
+      `<span class="check">✓</span>`;
+    t.addEventListener('click', () => togglePanel(i));
+    panelsEl.appendChild(t);
+  });
+  updatePanelActions();
+}
+function togglePanel(i) {
+  if (selectedPanels.has(i)) selectedPanels.delete(i); else selectedPanels.add(i);
+  panelsEl.children[i].classList.toggle('sel');
+  updatePanelActions();
+}
+function updatePanelActions() {
+  const n = selectedPanels.size;
+  replaceBtn.disabled = n === 0;
+  removeBtn.disabled = n === 0;
+  replaceBtn.textContent = n ? `Replace selected (${n})` : 'Replace selected';
+  removeBtn.textContent = n ? `Remove selected (${n})` : 'Remove selected';
+}
+function removeSelected() {
+  if (!selectedPanels.size) return;
+  revokeItems(mediaItems.filter((_, i) => selectedPanels.has(i)));
+  mediaItems = mediaItems.filter((_, i) => !selectedPanels.has(i));
+  afterMediaChange();
+}
+// Open the file picker in a given mode (the shared input's change handler reads it).
+function openPicker(mode) { uploadMode = mode; fileInput.value = ''; fileInput.click(); }
 
 /* GIF89a interlace pass order → real row indices */
 function deinterlaceRows(h) {
@@ -733,13 +881,16 @@ function buildGifFrameCanvases(frames, gw, gh) {
   return out;
 }
 
-drop.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
-fileInput.addEventListener('change', e => loadImages(e.target.files));
+drop.addEventListener('click', () => openPicker('all'));   // main box → replace all
+addBtn.addEventListener('click', () => openPicker('add'));
+replaceBtn.addEventListener('click', () => openPicker('replace'));
+removeBtn.addEventListener('click', removeSelected);
+fileInput.addEventListener('change', e => loadFiles(e.target.files, uploadMode));
 ['dragover','dragenter'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
 ['dragleave','drop'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hot'); }));
-drop.addEventListener('drop', e => loadImages(e.dataTransfer.files));
+drop.addEventListener('drop', e => loadFiles(e.dataTransfer.files, 'all'));  // drop → replace all
 
 /* ---------- live preview controls ---------- */
 function refreshCustomLabels() {
