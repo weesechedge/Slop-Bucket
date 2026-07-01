@@ -238,6 +238,80 @@
     50%      { border-color: rgba(220,40,40,0.95); }
   }
 
+  /* Uploaded-image manager */
+  .manage { display: none; flex-direction: column; gap: 10px; }
+  .manage.show { display: flex; }
+  .panels { display: flex; flex-wrap: wrap; gap: 8px; }
+  .thumb {
+    width: 112px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid var(--line);
+    background: #0a0a0f;
+    display: flex; flex-direction: column;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .thumb.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,94,58,0.35); }
+  .thumb.drop-target { border-color: var(--accent2); box-shadow: 0 0 0 2px rgba(77,124,255,0.5); }
+  .thumb.dragging { opacity: 0.85; pointer-events: none; box-shadow: 0 8px 22px rgba(0,0,0,0.55); }
+  .thumb-img {
+    position: relative;
+    width: 100%; height: 112px;
+    cursor: grab;
+    touch-action: none;        /* let pointer-drag work on touch without scrolling */
+    user-select: none;
+  }
+  .thumb-img img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    -webkit-user-drag: none; user-select: none; pointer-events: none;
+  }
+  .thumb .gif {
+    position: absolute; bottom: 4px; left: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.58rem; font-weight: 600;
+    color: #fff; background: rgba(255,94,58,0.85);
+    padding: 1px 5px; border-radius: 4px;
+  }
+  .thumb .check {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 0.82rem; line-height: 22px; text-align: center;
+    display: none;
+  }
+  .thumb.sel .check { display: block; }
+  .countrow {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.04);
+    border-top: 1px solid var(--line);
+  }
+  .cbtn {
+    border: none; background: transparent; color: var(--ink);
+    width: 34px; height: 32px; padding: 0;
+    font-size: 1.25rem; line-height: 1; cursor: pointer;
+    font-family: 'Bricolage Grotesque', sans-serif;
+  }
+  .cbtn:hover { color: var(--accent); }
+  .cbtn:disabled { opacity: 0.3; cursor: default; }
+  .cnum { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--ink); }
+  .panel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mini-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 8px 12px;
+    border-radius: 9px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 700; font-size: 0.74rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mini-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .mini-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .panel-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem; color: var(--dim); letter-spacing: 0.04em;
+  }
+
   .result { display: none; flex-direction: column; gap: 12px; align-items: center; }
   .result.show { display: flex; }
   .result img {
@@ -288,9 +362,19 @@
 
   <div class="drop" id="drop">
     <div class="icon">⬡</div>
-    <div class="big">Tap to upload an image or gif</div>
-    <div class="small">or drag &amp; drop · jpg / png / gif</div>
-    <input type="file" id="file" accept="image/*">
+    <div class="big" id="dropBig">Tap to upload images or GIFs</div>
+    <div class="small">or drag &amp; drop — you can pick several at once, and each one is placed on a different face. This box replaces everything you've uploaded; to add or swap individual images instead, use the panels below.</div>
+    <input type="file" id="file" accept="image/*" multiple>
+  </div>
+
+  <div class="manage" id="manage">
+    <div class="panels" id="panels"></div>
+    <div class="panel-actions">
+      <button class="mini-btn" id="addBtn">＋ Add more</button>
+      <button class="mini-btn" id="replaceBtn" disabled>Replace selected</button>
+      <button class="mini-btn" id="removeBtn" disabled>Remove selected</button>
+    </div>
+    <div class="panel-hint" id="panelHint">tap to select · drag to reorder · − / ＋ repeats an image across more faces · the box above replaces all</div>
   </div>
 
   <div class="stage empty" id="stage">
@@ -298,6 +382,7 @@
   </div>
 
   <div class="warning" id="hyperWarning">⚠ hypercube mode engaged · humans weren't meant to see this</div>
+  <div class="warning" id="overflowWarning"></div>
 
   <div class="panel">
     <div class="row">
@@ -404,6 +489,13 @@ const wobbleVal = document.getElementById('wobbleVal');
 const wobbleUndVal = document.getElementById('wobbleUndVal');
 const undTimeVal = document.getElementById('undTimeVal');
 const hyperWarning = document.getElementById('hyperWarning');
+const overflowWarning = document.getElementById('overflowWarning');
+const dropBig = document.getElementById('dropBig');
+const manage = document.getElementById('manage');
+const panelsEl = document.getElementById('panels');
+const addBtn = document.getElementById('addBtn');
+const replaceBtn = document.getElementById('replaceBtn');
+const removeBtn = document.getElementById('removeBtn');
 const progress = document.getElementById('progress');
 const bar = document.getElementById('bar');
 const result = document.getElementById('result');
@@ -411,11 +503,30 @@ const outImg = document.getElementById('out');
 const dl = document.getElementById('dl');
 const statusEl = document.getElementById('status');
 
-let imageURL = null;
-let imageEl = null;
+/* Uploaded media, one entry per file: { el:Image, isGif, gifFrames, gifDuration }.
+   Distributed across the object's faces (face f shows mediaItems[f % used]), so
+   one upload → same image on every face (as before), and up to one per face. */
+let mediaItems = [];        // each: { el, url, isGif, gifFrames, gifDuration }
+let selectedPanels = new Set();  // indices of panels the user has selected
+let uploadMode = 'all';     // 'all' (main box) | 'add' | 'replace' — set before opening the picker
 let currentAnim = 'dynamic';
 let currentShape = 'cube';  // 'cube' | 'd20' | 'hypercube'
 let bgMode = 'dark'; // 'dark' | 'transparent' — exported gif background
+
+// Faces per shape, and the atlas grid (cols×rows) that packs their images.
+const FACE_COUNTS = { cube: 6, d20: 20, hypercube: 24 };
+const ATLAS_GRID  = { cube: [3, 2], d20: [5, 4], hypercube: [6, 4] };
+const CELL_PX = 256;        // atlas resolution per face
+// Expand panels by their counts: a panel with count 5 contributes 5 entries in
+// place, so the same image lands on that many faces (in order). One panel with
+// any count still fills every face with the same image, i.e. count has no effect.
+function expandedMedia() {
+  const out = [];
+  for (const item of mediaItems) for (let k = 0; k < (item.count || 1); k++) out.push(item);
+  return out;
+}
+function usedCount() { return Math.min(expandedMedia().length, FACE_COUNTS[currentShape]); }
+function hasAnyGif() { return mediaItems.some(m => m.isGif); }
 
 /* Each animation is a set of whole-number "turns per loop" on three axes plus a
    small wobble. Integer turns guarantee the gif loops seamlessly (the shape ends
@@ -455,11 +566,6 @@ const CHROMA_KEY = 0xff00ff;
 const DEFAULT_BYTES_PER_FRAME = 14000;
 let bytesPerFrame = DEFAULT_BYTES_PER_FRAME;
 
-/* animated-gif decode state (populated only when a multi-frame gif is uploaded) */
-let isGif = false;          // true when the upload is an animated (>1 frame) gif
-let gifFrames = null;       // [{ canvas, delay(ms) }] fully-composited frames
-let gifDuration = 0;        // total loop length of the source gif, ms
-
 /* live-preview loop state */
 let previewRunning = false;
 let previewStart = 0;
@@ -469,39 +575,247 @@ let previewStart = 0;
 let lastOutURL = null;
 
 /* ---------- upload handling ---------- */
-function loadImage(file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  if (imageURL) URL.revokeObjectURL(imageURL);
-  imageURL = URL.createObjectURL(file);
-
-  // reset any previous gif state — a plain image export should stay static
-  isGif = false; gifFrames = null; gifDuration = 0;
-  // each image compresses differently, so drop back to the rough estimate
-  bytesPerFrame = DEFAULT_BYTES_PER_FRAME;
-
-  imageEl = new Image();
-  imageEl.onload = () => {
-    try {
-      if (!previewRenderer) initThree();
-      buildMesh();
-      previewCanvas.style.display = 'block';
-      stage.classList.remove('empty');
-      exportBtn.disabled = false;
-      result.classList.remove('show');
-      statusEl.textContent = 'ready';
-      updateEstimate();
-      startPreview();
-      if (file.type === 'image/gif') decodeGif(file);
-    } catch (err) {
-      // Most likely WebGL is unavailable or the three.js CDN failed to load.
-      console.error(err);
-      statusEl.textContent = 'error: could not start the renderer (WebGL / CDN unavailable?)';
-      exportBtn.disabled = true;
-    }
-  };
-  imageEl.onerror = () => { statusEl.textContent = 'error: could not load that image'; };
-  imageEl.src = imageURL;
+function updateDropLabel() {
+  const n = mediaItems.length;
+  dropBig.textContent = n
+    ? `${n} image${n > 1 ? 's' : ''} loaded — tap to replace them all`
+    : 'Tap to upload images or GIFs';
 }
+function updateOverflowWarning() {
+  const faces = FACE_COUNTS[currentShape];
+  const total = expandedMedia().length;   // counts included
+  if (total > faces) {
+    overflowWarning.textContent = `⚠ your panels total ${total} images (with counts) · ${currentShape} has ${faces} faces — only the first ${faces} are shown`;
+    overflowWarning.classList.add('show');
+  } else {
+    overflowWarning.classList.remove('show');
+  }
+}
+
+function revokeItems(items) { items.forEach(i => { if (i && i.url) URL.revokeObjectURL(i.url); }); }
+
+// Load one file into a media item, decoding animated gifs to frames.
+function loadOneMedia(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const el = new Image();
+    el.onload = async () => {
+      const item = { el, url, count: 1, isGif: false, gifFrames: null, gifDuration: 0 };
+      if (file.type === 'image/gif') {
+        try {
+          const { width: gw, height: gh, frames } = parseGifFrames(await file.arrayBuffer());
+          const built = buildGifFrameCanvases(frames, gw, gh);
+          if (built.length > 1) {
+            item.gifFrames = built;
+            item.gifDuration = built.reduce((s, f) => s + f.delay, 0);
+            item.isGif = true;
+          }
+        } catch (e) { console.error('gif decode failed', e); }
+      }
+      resolve(item);
+    };
+    el.onerror = () => { URL.revokeObjectURL(url); resolve(null); };  // skip files that fail
+    el.src = url;
+  });
+}
+
+// Merge newly loaded items into mediaItems according to the mode:
+//  'all'     — the main box: replace every image with the new batch
+//  'add'     — append the new batch
+//  'replace' — swap the selected panels for the new batch (inserted at the first
+//              selected position); count can differ (e.g. replace 2 with 3)
+function mergeMedia(newItems, mode) {
+  if (mode === 'add') {
+    mediaItems = mediaItems.concat(newItems);
+  } else if (mode === 'replace' && selectedPanels.size) {
+    const result = [];
+    let injected = false;
+    for (let i = 0; i < mediaItems.length; i++) {
+      if (selectedPanels.has(i)) {
+        if (!injected) { result.push(...newItems); injected = true; }
+        revokeItems([mediaItems[i]]);   // the replaced panel's url is no longer needed
+      } else {
+        result.push(mediaItems[i]);
+      }
+    }
+    mediaItems = result;
+  } else {
+    // 'all' (or 'replace' with nothing selected → treat as replace-all)
+    revokeItems(mediaItems);
+    mediaItems = newItems;
+  }
+}
+
+async function loadFiles(fileList, mode) {
+  const files = [...fileList].filter(f => f && f.type.startsWith('image/'));
+  if (!files.length) return;
+  statusEl.textContent = files.length > 1 ? `loading ${files.length} images…` : 'loading…';
+  const newItems = (await Promise.all(files.map(loadOneMedia))).filter(Boolean);
+  if (!newItems.length) { statusEl.textContent = 'error: could not load those images'; return; }
+  mergeMedia(newItems, mode);
+  afterMediaChange();
+  const gifs = mediaItems.filter(m => m.isGif).length;
+  statusEl.textContent = `ready · ${mediaItems.length} image${mediaItems.length > 1 ? 's' : ''}` +
+    (gifs ? ` · ${gifs} gif${gifs > 1 ? 's' : ''} embedded` : '');
+}
+
+// Rebuild everything after the media list changes (load, replace, remove).
+function afterMediaChange() {
+  selectedPanels.clear();
+  bytesPerFrame = DEFAULT_BYTES_PER_FRAME;   // content changed → re-estimate
+  result.classList.remove('show');
+  renderPanels();
+  updateDropLabel();
+  updateOverflowWarning();
+  if (!mediaItems.length) {                  // everything removed → back to empty
+    stopPreview();
+    previewCanvas.style.display = 'none';
+    stage.classList.add('empty');
+    exportBtn.disabled = true;
+    statusEl.textContent = '';
+    return;
+  }
+  try {
+    if (!previewRenderer) initThree();
+    buildMesh();
+    previewCanvas.style.display = 'block';
+    stage.classList.remove('empty');
+    exportBtn.disabled = false;
+    updateEstimate();
+    startPreview();
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'error: could not start the renderer (WebGL / CDN unavailable?)';
+    exportBtn.disabled = true;
+  }
+}
+
+/* ---------- uploaded-image panels ---------- */
+const MAX_COUNT = 24;   // no point exceeding the largest shape's face count
+
+// Repaint the faces (atlas) after a reorder / count change — no geometry rebuild
+// is needed, just which image sits in each cell. Gifs keep updating each preview
+// tick; this handles the immediate/static repaint.
+function refreshFaces() {
+  if (!mediaItems.length) return;
+  drawFaces(() => 0);
+  updateOverflowWarning();
+}
+
+function renderPanels() {
+  manage.classList.toggle('show', mediaItems.length > 0);
+  panelsEl.innerHTML = '';
+  mediaItems.forEach((item, i) => {
+    const count = item.count || 1;
+    const t = document.createElement('div');
+    t.className = 'thumb' + (selectedPanels.has(i) ? ' sel' : '');
+    t.dataset.i = i;
+    t.innerHTML =
+      `<div class="thumb-img"><img src="${item.url}" draggable="false" alt="face image ${i + 1}">` +
+      (item.isGif ? `<span class="gif">GIF</span>` : '') +
+      `<span class="check">✓</span></div>` +
+      `<div class="countrow"><button class="cbtn dec"${count <= 1 ? ' disabled' : ''}>−</button>` +
+      `<span class="cnum">${count}</span><button class="cbtn inc"${count >= MAX_COUNT ? ' disabled' : ''}>＋</button></div>`;
+    const img = t.querySelector('.thumb-img');
+    img.addEventListener('pointerdown', e => onPanelDown(e, i));
+    t.querySelector('.dec').addEventListener('click', e => { e.stopPropagation(); changeCount(i, -1); });
+    t.querySelector('.inc').addEventListener('click', e => { e.stopPropagation(); changeCount(i, +1); });
+    panelsEl.appendChild(t);
+  });
+  updatePanelActions();
+}
+
+function togglePanel(i) {
+  if (selectedPanels.has(i)) selectedPanels.delete(i); else selectedPanels.add(i);
+  panelsEl.children[i].classList.toggle('sel');
+  updatePanelActions();
+}
+
+function changeCount(i, delta) {
+  const item = mediaItems[i];
+  item.count = Math.min(MAX_COUNT, Math.max(1, (item.count || 1) + delta));
+  renderPanels();
+  refreshFaces();
+}
+
+/* ---------- drag-to-reorder (pointer events → works with mouse and touch) ---------- */
+let drag = null;
+function endDragListeners() {
+  window.removeEventListener('pointermove', onPanelMove);
+  window.removeEventListener('pointerup', onPanelUp);
+  window.removeEventListener('pointercancel', onPanelCancel);
+}
+function onPanelDown(e, i) {
+  drag = { i, x0: e.clientX, y0: e.clientY, moved: false, thumb: e.currentTarget.parentElement };
+  // Window-level listeners so the drag keeps tracking even as the dragged panel
+  // is made click-through (pointer-events:none) for drop hit-testing.
+  window.addEventListener('pointermove', onPanelMove);
+  window.addEventListener('pointerup', onPanelUp);
+  window.addEventListener('pointercancel', onPanelCancel);
+}
+function panelIndexUnder(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const thumb = el && el.closest('.thumb');
+  return (thumb && thumb.parentElement === panelsEl) ? +thumb.dataset.i : null;
+}
+let dropTargetEl = null;
+function setDropTarget(i) {
+  if (dropTargetEl) dropTargetEl.classList.remove('drop-target');
+  dropTargetEl = (i === null) ? null : panelsEl.children[i];
+  if (dropTargetEl) dropTargetEl.classList.add('drop-target');
+}
+function onPanelMove(e) {
+  if (!drag) return;
+  const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+  if (!drag.moved && Math.hypot(dx, dy) > 8) { drag.moved = true; drag.thumb.classList.add('dragging'); }
+  if (drag.moved) {
+    drag.thumb.style.transform = `translate(${dx}px, ${dy}px)`;
+    setDropTarget(panelIndexUnder(e.clientX, e.clientY));
+  }
+}
+function onPanelUp(e) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  endDragListeners();
+  if (!d.moved) { togglePanel(d.i); return; }   // a tap, not a drag → select
+  const tgt = panelIndexUnder(e.clientX, e.clientY);
+  setDropTarget(null);
+  d.thumb.classList.remove('dragging');
+  d.thumb.style.transform = '';
+  if (tgt !== null && tgt !== d.i) moveItem(d.i, tgt);
+  else renderPanels();   // dropped nowhere → reset transforms
+}
+function onPanelCancel() {
+  if (!drag) return;
+  drag.thumb.classList.remove('dragging');
+  drag.thumb.style.transform = '';
+  setDropTarget(null);
+  drag = null;
+  endDragListeners();
+  renderPanels();
+}
+function moveItem(from, to) {
+  const [it] = mediaItems.splice(from, 1);
+  mediaItems.splice(to, 0, it);
+  selectedPanels.clear();   // indices shifted; simplest to drop the selection
+  renderPanels();
+  refreshFaces();
+}
+function updatePanelActions() {
+  const n = selectedPanels.size;
+  replaceBtn.disabled = n === 0;
+  removeBtn.disabled = n === 0;
+  replaceBtn.textContent = n ? `Replace selected (${n})` : 'Replace selected';
+  removeBtn.textContent = n ? `Remove selected (${n})` : 'Remove selected';
+}
+function removeSelected() {
+  if (!selectedPanels.size) return;
+  revokeItems(mediaItems.filter((_, i) => selectedPanels.has(i)));
+  mediaItems = mediaItems.filter((_, i) => !selectedPanels.has(i));
+  afterMediaChange();
+}
+// Open the file picker in a given mode (the shared input's change handler reads it).
+function openPicker(mode) { uploadMode = mode; fileInput.value = ''; fileInput.click(); }
 
 /* GIF89a interlace pass order → real row indices */
 function deinterlaceRows(h) {
@@ -652,31 +966,6 @@ function parseGifFrames(buffer) {
   return { width, height, frames };
 }
 
-/* ---------- gif decoding (so export can embed the moving frames) ----------
-   Self-contained GIF87a/89a parser + LZW decoder — no external library, so it
-   works regardless of CDN availability. Produces frames shaped like
-   { dims:{left,top,width,height}, disposalType, delay(ms), patch:RGBA }. */
-async function decodeGif(file) {
-  statusEl.textContent = 'decoding gif frames…';
-  try {
-    const buf = await file.arrayBuffer();
-    const { width: gw, height: gh, frames } = parseGifFrames(buf);
-    const built = buildGifFrameCanvases(frames, gw, gh);
-    if (built.length > 1) {
-      gifFrames = built;
-      gifDuration = built.reduce((s, f) => s + f.delay, 0);
-      isGif = true;
-      statusEl.textContent = `ready · gif · ${built.length} frames embedded`;
-      updateEstimate();   // cycle-snapping changes the export frame count
-    } else {
-      statusEl.textContent = 'ready';
-    }
-  } catch (err) {
-    console.error(err);
-    statusEl.textContent = 'ready · gif decode failed, exporting first frame';
-  }
-}
-
 /* Composite each (possibly partial) gif frame into a full-size canvas,
    honouring disposal methods so motion renders correctly. */
 function buildGifFrameCanvases(frames, gw, gh) {
@@ -709,13 +998,19 @@ function buildGifFrameCanvases(frames, gw, gh) {
   return out;
 }
 
-drop.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
-fileInput.addEventListener('change', e => loadImage(e.target.files[0]));
+drop.addEventListener('click', () => openPicker('all'));   // main box → replace all
+addBtn.addEventListener('click', () => openPicker('add'));
+replaceBtn.addEventListener('click', () => openPicker('replace'));
+removeBtn.addEventListener('click', removeSelected);
+// The hidden input sits inside #drop; stop its programmatic click from bubbling
+// back up to #drop's handler (which would reset the mode to 'all').
+fileInput.addEventListener('click', e => e.stopPropagation());
+fileInput.addEventListener('change', e => loadFiles(e.target.files, uploadMode));
 ['dragover','dragenter'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
 ['dragleave','drop'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hot'); }));
-drop.addEventListener('drop', e => loadImage(e.dataTransfer.files[0]));
+drop.addEventListener('drop', e => loadFiles(e.dataTransfer.files, 'all'));  // drop → replace all
 
 /* ---------- live preview controls ---------- */
 function refreshCustomLabels() {
@@ -753,7 +1048,8 @@ shapeSeg.addEventListener('click', e => {
   shapeSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
   e.target.classList.add('on');
   hyperWarning.classList.toggle('show', currentShape === 'hypercube');
-  if (imageEl) buildMesh();           // swap geometry live
+  if (mediaItems.length) buildMesh();   // swap geometry + re-pack the atlas
+  updateOverflowWarning();              // face count changed, so recheck overflow
 });
 
 // Custom rotation sliders feed activeParams() directly; just refresh the labels.
@@ -778,18 +1074,8 @@ fpsSlider.addEventListener('input', () => {
 });
 
 /* ---------- export size estimate ---------- */
-// The actual export duration: when a gif is embedded it snaps to whole gif
-// cycles, so mirror that here for an accurate frame count.
-function exportDuration() {
-  let duration = parseFloat(durSlider.value);
-  if (isGif && gifDuration > 0) {
-    const cycles = Math.max(1, Math.round(duration * 1000 / gifDuration));
-    duration = cycles * gifDuration / 1000;
-  }
-  return duration;
-}
 function exportFrameCount() {
-  return Math.round(parseInt(fpsSlider.value, 10) * exportDuration());
+  return Math.round(parseInt(fpsSlider.value, 10) * parseFloat(durSlider.value));
 }
 function formatBytes(b) {
   return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
@@ -924,41 +1210,63 @@ function initThree() {
   renderer.setClearColor(0x07070b, 1);
 }
 
-// A canvas we repaint each frame; the cube texture reads from it so an
-// animated gif can play across the exported frames instead of being frozen.
+// The atlas canvas: a grid of per-face cells the mesh's UVs sample from. Repainted
+// each frame so animated gifs play across the exported frames instead of freezing.
 let textureCanvas = null, textureCtx = null, faceTexture = null;
 
-function drawTextureFrame(elapsedMs) {
-  const c = textureCanvas, ctx = textureCtx;
-  ctx.clearRect(0, 0, c.width, c.height);
-  if (isGif && gifFrames) {
-    const tms = gifDuration > 0 ? (elapsedMs % gifDuration) : 0;
-    let acc = 0, idx = gifFrames.length - 1;
-    for (let i = 0; i < gifFrames.length; i++) {
-      acc += gifFrames[i].delay;
-      if (tms < acc) { idx = i; break; }
-    }
-    ctx.drawImage(gifFrames[idx].canvas, 0, 0, c.width, c.height);
-  } else {
-    ctx.drawImage(imageEl, 0, 0, c.width, c.height);
-  }
-  if (faceTexture) faceTexture.needsUpdate = true;
+// UV rect of face f's atlas cell, inset ~1px so linear filtering never samples a
+// neighbouring face's image (which would show as a seam at the face edge).
+function cellUV(f) {
+  const [cols, rows] = ATLAS_GRID[currentShape];
+  const col = f % cols, row = Math.floor(f / cols);
+  const padU = 1 / textureCanvas.width, padV = 1 / textureCanvas.height;
+  return {
+    u0: col / cols + padU,       u1: (col + 1) / cols - padU,
+    v0: 1 - (row + 1) / rows + padV, v1: 1 - row / rows - padV,
+  };
 }
 
-/* Map the full image onto each triangular face of the icosahedron. Polyhedron
-   geometry is non-indexed (3 unique verts per face), so we just hand every face
-   the same upright triangle inscribed in the texture — the image lands on all
-   20 faces, edge to edge, the same way it covers each face of the cube. */
+// Pick the gif frame for an item at a given phase (ms into its own loop).
+function gifFrameCanvasAt(item, phaseMs) {
+  const tms = item.gifDuration > 0 ? (phaseMs % item.gifDuration) : 0;
+  let acc = 0, idx = item.gifFrames.length - 1;
+  for (let i = 0; i < item.gifFrames.length; i++) {
+    acc += item.gifFrames[i].delay;
+    if (tms < acc) { idx = i; break; }
+  }
+  return item.gifFrames[idx].canvas;
+}
+
+// Paint every face's image into its atlas cell. phaseFn(item) gives a gif's phase.
+function drawFaces(phaseFn) {
+  if (!mediaItems.length) return;
+  const exp = expandedMedia();
+  const [cols, rows] = ATLAS_GRID[currentShape];
+  const cw = textureCanvas.width / cols, ch = textureCanvas.height / rows;
+  const faces = FACE_COUNTS[currentShape], used = Math.min(exp.length, faces);
+  textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
+  for (let f = 0; f < faces; f++) {
+    const item = exp[f % used];
+    const src = (item.isGif && item.gifFrames) ? gifFrameCanvasAt(item, phaseFn(item)) : item.el;
+    textureCtx.drawImage(src, (f % cols) * cw, Math.floor(f / cols) * ch, cw, ch);
+  }
+  faceTexture.needsUpdate = true;
+}
+
+/* Map an upright triangle inscribed in each face's atlas cell onto that face, so
+   every one of the 20 triangular faces shows its assigned image. Polyhedron
+   geometry is non-indexed (3 unique verts per face). */
 function applyTriUVs(geo) {
   const pos = geo.attributes.position;
-  const faceCount = pos.count / 3;
+  const nFaces = pos.count / 3;
   const uv = new Float32Array(pos.count * 2);
   const tri = [0.5, 0.96,  0.04, 0.13,  0.96, 0.13]; // apex top, then two base corners
-  for (let f = 0; f < faceCount; f++) {
+  for (let f = 0; f < nFaces; f++) {
+    const c = cellUV(f);
     for (let v = 0; v < 3; v++) {
       const i = (f * 3 + v) * 2;
-      uv[i]     = tri[v * 2];
-      uv[i + 1] = tri[v * 2 + 1];
+      uv[i]     = c.u0 + tri[v * 2]     * (c.u1 - c.u0);
+      uv[i + 1] = c.v0 + tri[v * 2 + 1] * (c.v1 - c.v0);
     }
   }
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
@@ -973,15 +1281,18 @@ function buildMesh() {
 
   if (!textureCanvas) {
     textureCanvas = document.createElement('canvas');
-    // Square texture keeps each face undistorted regardless of source size.
-    textureCanvas.width = textureCanvas.height = 512;
     textureCtx = textureCanvas.getContext('2d');
   }
+  // Size the atlas to this shape's grid (cols×rows cells of CELL_PX).
+  const [cols, rows] = ATLAS_GRID[currentShape];
+  textureCanvas.width = cols * CELL_PX;
+  textureCanvas.height = rows * CELL_PX;
   if (!faceTexture) {
     faceTexture = new THREE.CanvasTexture(textureCanvas);
     faceTexture.minFilter = THREE.LinearFilter;
+    faceTexture.generateMipmaps = false;   // atlas is non-power-of-two
   }
-  drawTextureFrame(0);
+  drawFaces(() => 0);   // seed the atlas (statics + gifs at phase 0)
   // Flat & unlit (no shading change as it rotates). transparent:true lets the
   // image's blank/transparent areas show the background through, so a blank
   // cube blends perfectly with the backdrop in both the preview and the export.
@@ -1008,6 +1319,13 @@ function buildMesh() {
     geo = buildHyperGeometry();
   } else {
     geo = new THREE.BoxGeometry(2, 2, 2);
+    // Remap each face's default [0,1] UVs into its atlas cell (4 verts per face).
+    const uvAttr = geo.attributes.uv;
+    for (let i = 0; i < uvAttr.count; i++) {
+      const c = cellUV(Math.floor(i / 4));
+      uvAttr.setXY(i, c.u0 + uvAttr.getX(i) * (c.u1 - c.u0), c.v0 + uvAttr.getY(i) * (c.v1 - c.v0));
+    }
+    uvAttr.needsUpdate = true;
   }
   mesh = new THREE.Mesh(geo, mat);
   // Hypercube vertices are rewritten every frame, so skip frustum culling (its
@@ -1029,7 +1347,11 @@ function buildHyperGeometry() {
   const triUV = [[0,0],[1,0],[1,1], [0,0],[1,1],[0,1]];
   let u = 0;
   for (let f = 0; f < HYPER_FACES.length; f++) {
-    for (const [a, b] of triUV) { uv[u++] = a; uv[u++] = b; }
+    const c = cellUV(f);   // each of the 24 faces samples its own atlas cell
+    for (const [a, b] of triUV) {
+      uv[u++] = c.u0 + a * (c.u1 - c.u0);
+      uv[u++] = c.v0 + b * (c.v1 - c.v0);
+    }
   }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
@@ -1053,9 +1375,9 @@ function previewTick(now) {
   const elapsed = now - previewStart;
   const t = (elapsed % period) / period;
   applyAnimation(t);
-  // Static images are painted once in buildMesh; only animated gifs need a
-  // fresh texture frame each tick. (drawTextureFrame wraps the time itself.)
-  if (isGif && gifFrames) drawTextureFrame(elapsed);
+  // Static images are painted once in buildMesh; only animated gifs need a fresh
+  // atlas each tick. Each gif plays at its own native speed in the preview.
+  if (hasAnyGif()) drawFaces(item => elapsed % item.gifDuration);
   previewRenderer.render(threeScene, camera);
   requestAnimationFrame(previewTick);
 }
@@ -1072,7 +1394,7 @@ async function getWorkerURL() {
 
 /* ---------- export ---------- */
 exportBtn.addEventListener('click', async () => {
-  if (!imageEl) return;
+  if (!mediaItems.length) return;
   exportBtn.disabled = true;
   result.classList.remove('show');
   progress.classList.add('show');
@@ -1088,17 +1410,18 @@ exportBtn.addEventListener('click', async () => {
     const workerURL = await getWorkerURL();
 
     const fps = parseInt(fpsSlider.value, 10);
-    let duration = parseFloat(durSlider.value);
-    // When a gif is embedded, snap the loop length to a whole number of gif
-    // cycles (nearest to the requested duration, min 1) so the embedded gif
-    // ends exactly where it began — a seamless loop on the spinning cube.
-    let gifCycles = 1;
-    if (isGif && gifDuration > 0) {
-      gifCycles = Math.max(1, Math.round(duration * 1000 / gifDuration));
-      duration = gifCycles * gifDuration / 1000;
-    }
+    const duration = parseFloat(durSlider.value);
     const total = Math.round(fps * duration);
     const delay = Math.round(1000 / fps);
+
+    // Each embedded gif plays a whole number of its own cycles across the export
+    // (nearest to native speed, min 1) so every gif face lands back on frame 0 at
+    // the loop seam — a seamless loop even with many gifs of differing lengths.
+    const anyGif = hasAnyGif();
+    mediaItems.forEach(m => {
+      if (m.isGif) m.cycles = Math.max(1, Math.round(duration * 1000 / m.gifDuration));
+    });
+    if (!anyGif) drawFaces(() => 0);   // static: paint the atlas once
 
     const gif = new GIF({
       workers: 2,
@@ -1116,9 +1439,9 @@ exportBtn.addEventListener('click', async () => {
     for (let i = 0; i < total; i++) {
       const t = i / total;
       applyAnimation(t);   // same params as the live preview → export matches it
-      // Drive the gif so gifCycles full plays span the export — it lands exactly
-      // on a cycle boundary at the loop seam. (drawTextureFrame wraps the time.)
-      drawTextureFrame(t * gifCycles * gifDuration);
+      // Drive each gif so it completes its whole cycles over the export and lands
+      // on a cycle boundary at the loop seam.
+      if (anyGif) drawFaces(item => ((t * item.cycles) % 1) * item.gifDuration);
       exportRenderer.render(threeScene, camera);
       // dispose:2 (restore to background) keeps the moving shape from leaving a
       // trail through the transparent areas of earlier frames.
@@ -1148,9 +1471,9 @@ exportBtn.addEventListener('click', async () => {
       if (total > 0) bytesPerFrame = blob.size / total;
       updateEstimate();
       const kb = (blob.size/1024).toFixed(0);
-      const loopNote = isGif ? ` · ${duration.toFixed(1)}s · ${gifCycles}× gif loop` : '';
+      const faceNote = ` · ${usedCount()} face${usedCount() > 1 ? 's' : ''}${anyGif ? ' · animated' : ''}`;
       const bgNote = transparent ? ' · transparent' : '';
-      statusEl.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${bgNote}${loopNote}`;
+      statusEl.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${bgNote}${faceNote}`;
       exportBtn.disabled = false;
       startPreview();   // resume the live spin
     });
