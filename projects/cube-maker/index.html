@@ -1153,15 +1153,17 @@ function project4to3(v) {
   const k = HYPER_SCALE / (HYPER_D4 - v[3]);
   return [v[0] * k, v[1] * k, v[2] * k];
 }
-// The 4D "morph" — rotation in the XW and YW planes (the only rotations that
-// actually move the shape through the W axis and give the signature tesseract
-// inner-cube-turning-through effect). Its rate is `turnsW` whole turns per loop:
-// presets use 1; custom mode exposes it as the W-turns slider (0 = no morph, a
-// rigid tesseract just spinning in 3D). Whole turns keep the loop seamless.
+// The 4D "morph" — rotation in the ZW plane. This is the rotation that reads as
+// the signature tesseract inner-cube-turning-through effect: ZW mixes depth (z)
+// with w, so on screen the cells only change size/nesting — a pure morph with no
+// apparent 3D spin. (XW/YW instead mix a screen axis with w, so they swing
+// vertices around the screen and look like an ordinary rotation, hiding the
+// morph.) Its rate is `turnsW` whole turns per loop: presets use 1; custom mode
+// exposes it as the W-turns slider (0 = no morph). Whole turns keep it seamless.
 function updateHyperGeometry(t, params) {
   const arr = mesh.geometry.attributes.position.array;
   const w = (params && params.turnsW !== undefined) ? params.turnsW : 1;
-  const ang = { xw: w * t * TAU, yw: w * t * TAU, zw: 0 };
+  const ang = { zw: w * t * TAU };
   let vi = 0;
   for (const face of HYPER_FACES) {
     const p = face.map(v => project4to3(rotate4(v, ang)));
