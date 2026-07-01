@@ -409,6 +409,7 @@
       <div class="slider-row"><span class="mini">X turns</span><input type="range" id="turnX" min="0" max="4" step="1" value="1"><div class="val" id="turnXVal">1</div></div>
       <div class="slider-row"><span class="mini">Y turns</span><input type="range" id="turnY" min="0" max="4" step="1" value="1"><div class="val" id="turnYVal">1</div></div>
       <div class="slider-row"><span class="mini">Z turns</span><input type="range" id="turnZ" min="0" max="4" step="1" value="0"><div class="val" id="turnZVal">0</div></div>
+      <div class="slider-row" id="turnWRow" style="display:none"><span class="mini">W turns · 4D</span><input type="range" id="turnW" min="0" max="4" step="1" value="1"><div class="val" id="turnWVal">1</div></div>
       <div class="slider-row"><span class="mini">Wobble</span><input type="range" id="wobble" min="0" max="360" step="1" value="0"><div class="val" id="wobbleVal">0°</div></div>
       <div class="slider-row"><span class="mini">Wobble undulation</span><input type="range" id="wobbleUnd" min="0" max="360" step="1" value="0"><div class="val" id="wobbleUndVal">0°</div></div>
       <div class="slider-row"><span class="mini">Undulation time</span><input type="range" id="undTime" min="1" max="10" step="0.5" value="3"><div class="val" id="undTimeVal">3.0 s</div></div>
@@ -479,6 +480,9 @@ const customControls = document.getElementById('customControls');
 const turnX = document.getElementById('turnX');
 const turnY = document.getElementById('turnY');
 const turnZ = document.getElementById('turnZ');
+const turnW = document.getElementById('turnW');
+const turnWRow = document.getElementById('turnWRow');
+const turnWVal = document.getElementById('turnWVal');
 const wobbleSlider = document.getElementById('wobble');
 const wobbleUndSlider = document.getElementById('wobbleUnd');
 const undTimeSlider = document.getElementById('undTime');
@@ -547,6 +551,7 @@ function activeParams() {
       turnsX: parseInt(turnX.value, 10),
       turnsY: parseInt(turnY.value, 10),
       turnsZ: parseInt(turnZ.value, 10),
+      turnsW: parseInt(turnW.value, 10),   // 4D morph rate — only used by the hypercube
       wobble: parseInt(wobbleSlider.value, 10),
       wobbleUndulation: parseInt(wobbleUndSlider.value, 10),
       undulationCycles: Math.max(1, Math.round(loopLen / undTime)),
@@ -1017,6 +1022,7 @@ function refreshCustomLabels() {
   turnXVal.textContent = turnX.value;
   turnYVal.textContent = turnY.value;
   turnZVal.textContent = turnZ.value;
+  turnWVal.textContent = turnW.value;
   wobbleVal.textContent = wobbleSlider.value + '°';
   wobbleUndVal.textContent = wobbleUndSlider.value + '°';
   undTimeVal.textContent = parseFloat(undTimeSlider.value).toFixed(1) + ' s';
@@ -1025,9 +1031,14 @@ function syncCustomSliders(p) {
   turnX.value = p.turnsX;
   turnY.value = p.turnsY;
   turnZ.value = p.turnsZ;
+  turnW.value = p.turnsW !== undefined ? p.turnsW : 1;  // presets use the default morph
   wobbleSlider.value = p.wobble;
   wobbleUndSlider.value = p.wobbleUndulation || 0;  // presets don't undulate
   refreshCustomLabels();
+}
+// The W-turns (4D morph) slider only makes sense for the hypercube in custom mode.
+function updateWRow() {
+  turnWRow.style.display = (currentAnim === 'custom' && currentShape === 'hypercube') ? 'flex' : 'none';
 }
 seg.addEventListener('click', e => {
   if (e.target.tagName !== 'BUTTON') return;
@@ -1039,6 +1050,7 @@ seg.addEventListener('click', e => {
   // the motion carries over instead of jumping.
   if (currentAnim === 'custom' && ANIM_PRESETS[prev]) syncCustomSliders(ANIM_PRESETS[prev]);
   customControls.style.display = currentAnim === 'custom' ? 'flex' : 'none';
+  updateWRow();
   previewStart = performance.now();   // restart the loop cleanly on the new path
 });
 
@@ -1048,12 +1060,13 @@ shapeSeg.addEventListener('click', e => {
   shapeSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
   e.target.classList.add('on');
   hyperWarning.classList.toggle('show', currentShape === 'hypercube');
+  updateWRow();                         // W-turns slider is hypercube-only
   if (mediaItems.length) buildMesh();   // swap geometry + re-pack the atlas
   updateOverflowWarning();              // face count changed, so recheck overflow
 });
 
 // Custom rotation sliders feed activeParams() directly; just refresh the labels.
-[turnX, turnY, turnZ, wobbleSlider, wobbleUndSlider, undTimeSlider].forEach(
+[turnX, turnY, turnZ, turnW, wobbleSlider, wobbleUndSlider, undTimeSlider].forEach(
   s => s.addEventListener('input', refreshCustomLabels));
 
 bgSeg.addEventListener('click', e => {
@@ -1140,13 +1153,15 @@ function project4to3(v) {
   const k = HYPER_SCALE / (HYPER_D4 - v[3]);
   return [v[0] * k, v[1] * k, v[2] * k];
 }
-// Fixed 4D morph (whole turns per loop, so it loops seamlessly). This is the
-// "hypercube-ness"; the selected animation tumbles the projected result in 3D.
-const HYPER_MORPH = { xw: 1, yw: 1 };
-// Recompute every face vertex for time t and push into the live position buffer.
-function updateHyperGeometry(t) {
+// The 4D "morph" — rotation in the XW and YW planes (the only rotations that
+// actually move the shape through the W axis and give the signature tesseract
+// inner-cube-turning-through effect). Its rate is `turnsW` whole turns per loop:
+// presets use 1; custom mode exposes it as the W-turns slider (0 = no morph, a
+// rigid tesseract just spinning in 3D). Whole turns keep the loop seamless.
+function updateHyperGeometry(t, params) {
   const arr = mesh.geometry.attributes.position.array;
-  const ang = { xw: HYPER_MORPH.xw * t * TAU, yw: HYPER_MORPH.yw * t * TAU, zw: 0 };
+  const w = (params && params.turnsW !== undefined) ? params.turnsW : 1;
+  const ang = { xw: w * t * TAU, yw: w * t * TAU, zw: 0 };
   let vi = 0;
   for (const face of HYPER_FACES) {
     const p = face.map(v => project4to3(rotate4(v, ang)));
@@ -1158,12 +1173,12 @@ function updateHyperGeometry(t) {
 }
 
 // Apply the current animation at loop-fraction t. Every shape — including the
-// hypercube — tumbles in 3D via the same params, so all shapes share the
-// selected animation. The hypercube additionally re-projects its 4D morph.
+// hypercube — tumbles in 3D via the X/Y/Z params. The hypercube additionally
+// re-projects its 4D morph (driven by the W turns).
 function applyAnimation(t) {
   if (!mesh) return;
   const p = activeParams();
-  if (currentShape === 'hypercube') updateHyperGeometry(t);
+  if (currentShape === 'hypercube') updateHyperGeometry(t, p);
   const r = rotationAt(p, t);
   mesh.rotation.set(r.x, r.y, r.z);
 }
@@ -1332,7 +1347,7 @@ function buildMesh() {
   // bounding sphere would be stale) and seed the positions for the static preview.
   if (isHyper) {
     mesh.frustumCulled = false;
-    updateHyperGeometry(0);
+    updateHyperGeometry(0, activeParams());
   }
   // No edge lines — the image/gif should cover each face edge to edge.
   threeScene.add(mesh);
