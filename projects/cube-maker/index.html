@@ -1373,12 +1373,23 @@ function ensureFisheye() {
       uniform samplerCube envMap;
       uniform float fovRad;      // full field of view in radians (up to 2π = 360°)
       uniform mat3 camRot;       // camera orientation (its rpm-driven spin)
-      varying vec2 vPos;         // -1..1 across the square
+      varying vec2 vPos;         // -1..1 across the square (corners at radius √2)
+      const float SQRT2 = 1.41421356;
       void main() {
         float r = length(vPos);
-        if (r > 1.0) discard;                 // circular fisheye; corners = background
-        float theta = r * fovRad * 0.5;       // 0 straight ahead … π directly behind
         float phi = atan(vPos.y, vPos.x);
+        // Rectilinear (pinhole) mapping: straight lines stay straight and it fills
+        // the whole frame, so a normal FOV looks exactly like a real camera standing
+        // at the centre of the cube — 90° reads as an actual 90° view. Clamped just
+        // below its 180° singularity; beyond that the fisheye term takes over.
+        float tRect = tan(min(fovRad, radians(150.0)) * 0.5);
+        float thetaRect = atan(r * tRect);
+        // Equidistant fisheye: needed to pass 180° and reach a full 360° (frame
+        // corner = directly behind). Scaled to the corner so it also fills the frame.
+        float thetaEqui = r * (fovRad * 0.5) / SQRT2;
+        // Blend rectilinear → fisheye only as the FOV goes ultra-wide.
+        float w = smoothstep(radians(120.0), radians(300.0), fovRad);
+        float theta = mix(thetaRect, thetaEqui, w);
         float st = sin(theta);
         vec3 dir = vec3(st * cos(phi), st * sin(phi), -cos(theta));  // camera faces -Z
         gl_FragColor = textureCube(envMap, camRot * dir);
