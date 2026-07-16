@@ -459,6 +459,22 @@
     <div class="status" id="status"></div>
   </div>
 
+  <div class="panel">
+    <div class="row">
+      <div class="label">Cube Immersion</div>
+      <div class="seg" id="immSeg">
+        <button class="on" data-imm="off">Off</button>
+        <button data-imm="on">On</button>
+      </div>
+    </div>
+    <div class="row" id="immControls" style="display:none">
+      <div class="panel-hint">camera sits at the centre looking out · X / Y / Z spin the camera itself, independent of the object · speeds snap to whole turns per loop so the gif stays seamless · 0 = still</div>
+      <div class="slider-row"><span class="mini">X rot/min</span><input type="range" id="camX" min="0" max="120" step="1" value="0"><div class="val" id="camXVal">0</div></div>
+      <div class="slider-row"><span class="mini">Y rot/min</span><input type="range" id="camY" min="0" max="120" step="1" value="0"><div class="val" id="camYVal">0</div></div>
+      <div class="slider-row"><span class="mini">Z rot/min</span><input type="range" id="camZ" min="0" max="120" step="1" value="0"><div class="val" id="camZVal">0</div></div>
+    </div>
+  </div>
+
   <div class="result" id="result">
     <img id="out" alt="cube gif">
     <a class="dl" id="dl" download="cube.gif">↓ Download GIF</a>
@@ -489,6 +505,14 @@ const fpsSlider = document.getElementById('fps');
 const fpsVal = document.getElementById('fpsVal');
 const resSlider = document.getElementById('res');
 const resVal = document.getElementById('resVal');
+const immSeg = document.getElementById('immSeg');
+const immControls = document.getElementById('immControls');
+const camX = document.getElementById('camX');
+const camY = document.getElementById('camY');
+const camZ = document.getElementById('camZ');
+const camXVal = document.getElementById('camXVal');
+const camYVal = document.getElementById('camYVal');
+const camZVal = document.getElementById('camZVal');
 const estimateEl = document.getElementById('estimate');
 const customControls = document.getElementById('customControls');
 const turnX = document.getElementById('turnX');
@@ -530,6 +554,9 @@ let uploadMode = 'all';     // 'all' (main box) | 'add' | 'replace' — set befo
 let currentAnim = 'dynamic';
 let currentShape = 'cube';  // 'cube' | 'd20' | 'hypercube'
 let bgMode = 'dark'; // 'dark' | 'transparent' — exported gif background
+let immersion = false;      // CUBE IMMERSION: camera sits at the centre, looking out
+const NORMAL_FOV = 45, IMMERSION_FOV = 90;   // wider FOV inside so you feel surrounded
+let camDefaultZ = 0;        // camera distance for the normal (outside) view
 
 // Faces per shape, and the atlas grid (cols×rows) that packs their images.
 const FACE_COUNTS = { cube: 6, d20: 20, hypercube: 24 };
@@ -1117,6 +1144,24 @@ resSlider.addEventListener('input', () => {
   updateEstimate();
 });
 
+/* ---------- cube immersion ---------- */
+function refreshCamLabels() {
+  camXVal.textContent = camX.value;
+  camYVal.textContent = camY.value;
+  camZVal.textContent = camZ.value;
+}
+immSeg.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  immersion = e.target.dataset.imm === 'on';
+  immSeg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  e.target.classList.add('on');
+  immControls.style.display = immersion ? 'flex' : 'none';
+  updateMaterialSide();   // interior faces need DoubleSide when immersed
+  // The preview loop applies the camera each tick; nothing else to restart.
+});
+// Camera rpm sliders feed applyCamera() directly; just refresh their labels.
+[camX, camY, camZ].forEach(s => s.addEventListener('input', refreshCamLabels));
+
 /* ---------- export size estimate ---------- */
 function exportFrameCount() {
   return Math.round(parseInt(fpsSlider.value, 10) * parseFloat(durSlider.value));
@@ -1217,6 +1262,45 @@ function applyAnimation(t) {
   mesh.rotation.set(r.x, r.y, r.z);
 }
 
+/* ---------- immersion camera ----------
+   In immersion mode the camera sits at the object's centre and spins on its own
+   X/Y/Z axes, independent of the object's own animation. The sliders are
+   "rotations per minute", but to keep the exported gif seamless we snap each to
+   a whole number of turns over the loop — so the camera returns to exactly its
+   start orientation at the loop seam (just like the object's integer turns).
+   0 rpm → 0 turns → a stationary view (the default). Both the live preview and
+   the export call this each frame, so the preview is a true preview of the gif. */
+function camTurnsFor(slider) {
+  const rpm = parseInt(slider.value, 10);
+  if (!rpm) return 0;                       // 0 = still
+  const dur = parseFloat(durSlider.value);
+  return Math.round(rpm / 60 * dur);        // whole turns per loop → seamless
+}
+function applyCamera(t) {
+  if (!camera) return;
+  if (immersion) {
+    if (camera.fov !== IMMERSION_FOV) { camera.fov = IMMERSION_FOV; camera.updateProjectionMatrix(); }
+    camera.position.set(0, 0, 0);           // centre of the object
+    camera.rotation.set(
+      camTurnsFor(camX) * t * TAU,
+      camTurnsFor(camY) * t * TAU,
+      camTurnsFor(camZ) * t * TAU
+    );
+  } else {                                   // normal (outside) view
+    if (camera.fov !== NORMAL_FOV) { camera.fov = NORMAL_FOV; camera.updateProjectionMatrix(); }
+    camera.position.set(0, 0, camDefaultZ);
+    camera.rotation.set(0, 0, 0);
+  }
+}
+
+// Immersion (camera inside) needs each face's inward side drawn; the hypercube
+// always needs both sides. Otherwise only the outward-facing front faces render.
+function updateMaterialSide() {
+  if (!mesh) return;
+  mesh.material.side = (immersion || currentShape === 'hypercube') ? THREE.DoubleSide : THREE.FrontSide;
+  mesh.material.needsUpdate = true;
+}
+
 /* ---------- WebGL setup for export ---------- */
 const glcanvas = document.getElementById('glcanvas');
 let renderer, previewRenderer, threeScene, camera, mesh;
@@ -1240,12 +1324,13 @@ function ensureTransRenderer() {
 
 function initThree() {
   threeScene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera = new THREE.PerspectiveCamera(NORMAL_FOV, 1, 0.1, 100);
   // Pull the camera in so the shape's circumscribed sphere (cube corners / d20
   // vertices, both at radius √3) almost fills the square frame, with a small
   // safety margin so nothing clips the border at any rotation.
-  const halfFov = (45 / 2) * Math.PI / 180;
+  const halfFov = (NORMAL_FOV / 2) * Math.PI / 180;
   camera.position.z = (Math.sqrt(3) / Math.sin(halfFov)) * 1.05;
+  camDefaultZ = camera.position.z;   // restored when leaving immersion mode
 
   // Unlit, flat material (no shading as it spins) — set up per-mesh in buildMesh.
   // Visible preview renderer — transparent clear so blank areas blend with the
@@ -1352,7 +1437,7 @@ function buildMesh() {
   const mat = new THREE.MeshBasicMaterial({
     map: faceTexture,
     transparent: true,
-    side: isHyper ? THREE.DoubleSide : THREE.FrontSide,
+    side: (immersion || isHyper) ? THREE.DoubleSide : THREE.FrontSide,
     // The hypercube's 24 faces overlap as they sweep through 4D; writing depth
     // would make them pop in and out of occlusion (jank). Skipping depth writes
     // blends them in a stable order, so the morph reads as a smooth glassy spin.
@@ -1425,6 +1510,7 @@ function previewTick(now) {
   const elapsed = now - previewStart;
   const t = (elapsed % period) / period;
   applyAnimation(t);
+  applyCamera(t);   // immersion camera (or restores the normal outside view)
   // Static images are painted once in buildMesh; only animated gifs need a fresh
   // atlas each tick. Each gif plays at its own native speed in the preview.
   if (hasAnyGif()) drawFaces(item => elapsed % item.gifDuration);
@@ -1491,6 +1577,7 @@ exportBtn.addEventListener('click', async () => {
     for (let i = 0; i < total; i++) {
       const t = i / total;
       applyAnimation(t);   // same params as the live preview → export matches it
+      applyCamera(t);      // immersion camera — driven identically to the preview
       // Drive each gif so it completes its whole cycles over the export and lands
       // on a cycle boundary at the loop seam.
       if (anyGif) drawFaces(item => ((t * item.cycles) % 1) * item.gifDuration);
