@@ -107,6 +107,10 @@
     width: 96%;
     height: 96%;
     display: none;
+    /* The preview renders at the chosen output resolution and is scaled to fill
+       the stage, so a low resolution shows the real, blocky output pixels. */
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
   }
 
   /* Controls */
@@ -416,18 +420,26 @@
     </div>
 
     <div class="row">
-      <div class="label">Loop length</div>
+      <div class="label">Speed · seconds per loop</div>
       <div class="slider-row">
-        <input type="range" id="dur" min="2" max="8" step="1" value="4">
-        <div class="val" id="durVal">4.0 s</div>
+        <input type="range" id="dur" min="1" max="50" step="1" value="4">
+        <div class="val" id="durVal">4 s</div>
       </div>
     </div>
 
     <div class="row">
       <div class="label">Frame rate</div>
       <div class="slider-row">
-        <input type="range" id="fps" min="10" max="50" step="1" value="24">
+        <input type="range" id="fps" min="1" max="50" step="1" value="24">
         <div class="val" id="fpsVal">24 fps</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="label">Resolution · output px</div>
+      <div class="slider-row">
+        <input type="range" id="res" min="64" max="1024" step="8" value="600">
+        <div class="val" id="resVal">600 px</div>
       </div>
     </div>
 
@@ -475,6 +487,8 @@ const durSlider = document.getElementById('dur');
 const durVal = document.getElementById('durVal');
 const fpsSlider = document.getElementById('fps');
 const fpsVal = document.getElementById('fpsVal');
+const resSlider = document.getElementById('res');
+const resVal = document.getElementById('resVal');
 const estimateEl = document.getElementById('estimate');
 const customControls = document.getElementById('customControls');
 const turnX = document.getElementById('turnX');
@@ -565,11 +579,16 @@ function activeParams() {
    transparency. Vivid magenta so it almost never collides with image content. */
 const CHROMA_KEY = 0xff00ff;
 
-/* Bytes-per-frame used for the live size estimate. GIF size is heavily
-   content-dependent, so we start with a rough guess and then recalibrate from
-   the real byte size of each export — estimates get accurate after one render. */
-const DEFAULT_BYTES_PER_FRAME = 14000;
-let bytesPerFrame = DEFAULT_BYTES_PER_FRAME;
+/* Bytes-per-pixel used for the live size estimate. GIF size is heavily
+   content-dependent and scales with the output area, so we track a per-pixel
+   figure (seeded from a rough guess at 360×360) and recalibrate it from the
+   real byte size of each export — estimates get accurate after one render and
+   stay accurate as the resolution slider changes. */
+const DEFAULT_BYTES_PER_PIXEL = 14000 / (360 * 360);
+let bytesPerPixel = DEFAULT_BYTES_PER_PIXEL;
+
+/* Square output resolution (px) for the exported gif and the live preview. */
+function currentRes() { return parseInt(resSlider.value, 10); }
 
 /* live-preview loop state */
 let previewRunning = false;
@@ -667,7 +686,7 @@ async function loadFiles(fileList, mode) {
 // Rebuild everything after the media list changes (load, replace, remove).
 function afterMediaChange() {
   selectedPanels.clear();
-  bytesPerFrame = DEFAULT_BYTES_PER_FRAME;   // content changed → re-estimate
+  bytesPerPixel = DEFAULT_BYTES_PER_PIXEL;   // content changed → re-estimate
   result.classList.remove('show');
   renderPanels();
   updateDropLabel();
@@ -1077,12 +1096,24 @@ bgSeg.addEventListener('click', e => {
 });
 
 durSlider.addEventListener('input', () => {
-  durVal.textContent = parseFloat(durSlider.value).toFixed(1) + ' s';
+  durVal.textContent = durSlider.value + ' s';
   updateEstimate();
 });
 
 fpsSlider.addEventListener('input', () => {
   fpsVal.textContent = fpsSlider.value + ' fps';
+  updateEstimate();
+});
+
+// Resolution drives both the export size and the preview's internal render
+// resolution, so the display box shows the real output pixels (blocky when low,
+// crisp when high). CSS keeps the canvas filling the stage at any resolution.
+resSlider.addEventListener('input', () => {
+  resVal.textContent = resSlider.value + ' px';
+  if (previewRenderer) {
+    const r = currentRes();
+    previewRenderer.setSize(r, r, false);   // re-renders on the next preview tick
+  }
   updateEstimate();
 });
 
@@ -1096,8 +1127,9 @@ function formatBytes(b) {
 }
 function updateEstimate() {
   const frames = exportFrameCount();
-  const est = frames * bytesPerFrame;
-  estimateEl.innerHTML = `estimated size · <b>~${formatBytes(est)}</b> · ${frames} frames @ ${fpsSlider.value}fps`;
+  const res = currentRes();
+  const est = frames * bytesPerPixel * res * res;
+  estimateEl.innerHTML = `estimated size · <b>~${formatBytes(est)}</b> · ${frames} frames @ ${fpsSlider.value}fps · ${res}²`;
 }
 
 /* ---------- rotation math (drives both the preview and the export) ----------
@@ -1195,13 +1227,14 @@ let transRenderer = null, transCanvas = null;
    pixels AA produces, so they'd leave a coloured fringe around the shape. It
    clears to the chroma key, which gif.js then turns into transparency. */
 function ensureTransRenderer() {
+  const r = currentRes();
   if (!transRenderer) {
     transCanvas = document.createElement('canvas');
-    transCanvas.width = transCanvas.height = 360;
+    transCanvas.width = transCanvas.height = r;
     transRenderer = new THREE.WebGLRenderer({ canvas: transCanvas, antialias: false, preserveDrawingBuffer: true, alpha: false });
-    transRenderer.setSize(360, 360, false);
-    transRenderer.setClearColor(CHROMA_KEY, 1);
   }
+  transRenderer.setSize(r, r, false);   // match the current resolution slider
+  transRenderer.setClearColor(CHROMA_KEY, 1);
   return transRenderer;
 }
 
@@ -1218,12 +1251,12 @@ function initThree() {
   // Visible preview renderer — transparent clear so blank areas blend with the
   // stage background instead of showing a solid box.
   previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
-  previewRenderer.setSize(600, 600, false);
+  previewRenderer.setSize(currentRes(), currentRes(), false);
   previewRenderer.setClearColor(0x000000, 0);
 
   // Offscreen renderer used only for gif export — solid background, readable pixels.
   renderer = new THREE.WebGLRenderer({ canvas: glcanvas, antialias: true, preserveDrawingBuffer: true, alpha: false });
-  renderer.setSize(360, 360, false);
+  renderer.setSize(currentRes(), currentRes(), false);
   renderer.setClearColor(0x07070b, 1);
 }
 
@@ -1422,8 +1455,10 @@ exportBtn.addEventListener('click', async () => {
   const transparent = bgMode === 'transparent';
   try {
     if (!renderer) initThree();
+    const res = currentRes();
     const exportRenderer = transparent ? ensureTransRenderer() : renderer;
     const exportCanvas = transparent ? transCanvas : glcanvas;
+    exportRenderer.setSize(res, res, false);   // render at the chosen output resolution
     const workerURL = await getWorkerURL();
 
     const fps = parseInt(fpsSlider.value, 10);
@@ -1443,8 +1478,8 @@ exportBtn.addEventListener('click', async () => {
     const gif = new GIF({
       workers: 2,
       quality: 10,
-      width: 360,
-      height: 360,
+      width: res,
+      height: res,
       workerScript: workerURL,
       dither: false,
       transparent: transparent ? CHROMA_KEY : null
@@ -1484,13 +1519,14 @@ exportBtn.addEventListener('click', async () => {
       result.classList.add('show');
       progress.classList.remove('show');
       // Calibrate the estimator from this real result so future estimates for
-      // the same image are accurate, then refresh the displayed estimate.
-      if (total > 0) bytesPerFrame = blob.size / total;
+      // the same image are accurate (per-pixel, so they track the resolution
+      // slider too), then refresh the displayed estimate.
+      if (total > 0) bytesPerPixel = blob.size / (total * res * res);
       updateEstimate();
       const kb = (blob.size/1024).toFixed(0);
       const faceNote = ` · ${usedCount()} face${usedCount() > 1 ? 's' : ''}${anyGif ? ' · animated' : ''}`;
       const bgNote = transparent ? ' · transparent' : '';
-      statusEl.textContent = `done · ${kb} KB · ${total} frames @ ${fps}fps${bgNote}${faceNote}`;
+      statusEl.textContent = `done · ${kb} KB · ${res}² · ${total} frames @ ${fps}fps${bgNote}${faceNote}`;
       exportBtn.disabled = false;
       startPreview();   // resume the live spin
     });
