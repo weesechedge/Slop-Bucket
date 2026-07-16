@@ -469,9 +469,10 @@
     </div>
     <div class="row" id="immControls" style="display:none">
       <div class="panel-hint">camera sits at the centre looking out · X / Y / Z spin the camera itself, independent of the object · speeds snap to whole turns per loop so the gif stays seamless · 0 = still</div>
-      <div class="slider-row"><span class="mini">X rot/min</span><input type="range" id="camX" min="0" max="120" step="1" value="0"><div class="val" id="camXVal">0</div></div>
-      <div class="slider-row"><span class="mini">Y rot/min</span><input type="range" id="camY" min="0" max="120" step="1" value="0"><div class="val" id="camYVal">0</div></div>
-      <div class="slider-row"><span class="mini">Z rot/min</span><input type="range" id="camZ" min="0" max="120" step="1" value="0"><div class="val" id="camZVal">0</div></div>
+      <div class="slider-row"><span class="mini">Field of view</span><input type="range" id="camFov" min="1" max="360" step="1" value="90"><div class="val" id="camFovVal">90°</div></div>
+      <div class="slider-row"><span class="mini">X rot/min</span><input type="range" id="camX" min="0" max="10" step="1" value="0"><div class="val" id="camXVal">0</div></div>
+      <div class="slider-row"><span class="mini">Y rot/min</span><input type="range" id="camY" min="0" max="10" step="1" value="0"><div class="val" id="camYVal">0</div></div>
+      <div class="slider-row"><span class="mini">Z rot/min</span><input type="range" id="camZ" min="0" max="10" step="1" value="0"><div class="val" id="camZVal">0</div></div>
     </div>
   </div>
 
@@ -507,6 +508,8 @@ const resSlider = document.getElementById('res');
 const resVal = document.getElementById('resVal');
 const immSeg = document.getElementById('immSeg');
 const immControls = document.getElementById('immControls');
+const camFov = document.getElementById('camFov');
+const camFovVal = document.getElementById('camFovVal');
 const camX = document.getElementById('camX');
 const camY = document.getElementById('camY');
 const camZ = document.getElementById('camZ');
@@ -555,7 +558,7 @@ let currentAnim = 'dynamic';
 let currentShape = 'cube';  // 'cube' | 'd20' | 'hypercube'
 let bgMode = 'dark'; // 'dark' | 'transparent' — exported gif background
 let immersion = false;      // CUBE IMMERSION: camera sits at the centre, looking out
-const NORMAL_FOV = 45, IMMERSION_FOV = 90;   // wider FOV inside so you feel surrounded
+const NORMAL_FOV = 45;      // FOV for the normal outside view (immersion FOV is a slider)
 let camDefaultZ = 0;        // camera distance for the normal (outside) view
 
 // Faces per shape, and the atlas grid (cols×rows) that packs their images.
@@ -612,7 +615,10 @@ const CHROMA_KEY = 0xff00ff;
    real byte size of each export — estimates get accurate after one render and
    stay accurate as the resolution slider changes. */
 const DEFAULT_BYTES_PER_PIXEL = 14000 / (360 * 360);
-let bytesPerPixel = DEFAULT_BYTES_PER_PIXEL;
+// The inside (immersion) view compresses very differently from the outside view,
+// so each mode keeps its own calibration and the estimate tracks the active one.
+let bytesPerPixel = { normal: DEFAULT_BYTES_PER_PIXEL, immersion: DEFAULT_BYTES_PER_PIXEL };
+function activeBpp() { return immersion ? bytesPerPixel.immersion : bytesPerPixel.normal; }
 
 /* Square output resolution (px) for the exported gif and the live preview. */
 function currentRes() { return parseInt(resSlider.value, 10); }
@@ -713,7 +719,7 @@ async function loadFiles(fileList, mode) {
 // Rebuild everything after the media list changes (load, replace, remove).
 function afterMediaChange() {
   selectedPanels.clear();
-  bytesPerPixel = DEFAULT_BYTES_PER_PIXEL;   // content changed → re-estimate
+  bytesPerPixel.normal = bytesPerPixel.immersion = DEFAULT_BYTES_PER_PIXEL;   // content changed → re-estimate
   result.classList.remove('show');
   renderPanels();
   updateDropLabel();
@@ -1146,6 +1152,7 @@ resSlider.addEventListener('input', () => {
 
 /* ---------- cube immersion ---------- */
 function refreshCamLabels() {
+  camFovVal.textContent = camFov.value + '°';
   camXVal.textContent = camX.value;
   camYVal.textContent = camY.value;
   camZVal.textContent = camZ.value;
@@ -1157,10 +1164,12 @@ immSeg.addEventListener('click', e => {
   e.target.classList.add('on');
   immControls.style.display = immersion ? 'flex' : 'none';
   updateMaterialSide();   // interior faces need DoubleSide when immersed
+  refreshFaces();         // repaint the atlas (un)mirrored for the new view
+  updateEstimate();       // size estimate is tracked per mode
   // The preview loop applies the camera each tick; nothing else to restart.
 });
-// Camera rpm sliders feed applyCamera() directly; just refresh their labels.
-[camX, camY, camZ].forEach(s => s.addEventListener('input', refreshCamLabels));
+// FOV + camera rpm sliders feed applyCamera() directly; just refresh their labels.
+[camFov, camX, camY, camZ].forEach(s => s.addEventListener('input', refreshCamLabels));
 
 /* ---------- export size estimate ---------- */
 function exportFrameCount() {
@@ -1173,7 +1182,7 @@ function formatBytes(b) {
 function updateEstimate() {
   const frames = exportFrameCount();
   const res = currentRes();
-  const est = frames * bytesPerPixel * res * res;
+  const est = frames * activeBpp() * res * res;
   estimateEl.innerHTML = `estimated size · <b>~${formatBytes(est)}</b> · ${frames} frames @ ${fpsSlider.value}fps · ${res}²`;
 }
 
@@ -1279,7 +1288,8 @@ function camTurnsFor(slider) {
 function applyCamera(t) {
   if (!camera) return;
   if (immersion) {
-    if (camera.fov !== IMMERSION_FOV) { camera.fov = IMMERSION_FOV; camera.updateProjectionMatrix(); }
+    const fov = parseInt(camFov.value, 10);   // user-set field of view (1°–360°)
+    if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
     camera.position.set(0, 0, 0);           // centre of the object
     camera.rotation.set(
       camTurnsFor(camX) * t * TAU,
@@ -1383,7 +1393,19 @@ function drawFaces(phaseFn) {
   for (let f = 0; f < faces; f++) {
     const item = exp[f % used];
     const src = (item.isGif && item.gifFrames) ? gifFrameCanvasAt(item, phaseFn(item)) : item.el;
-    textureCtx.drawImage(src, (f % cols) * cw, Math.floor(f / cols) * ch, cw, ch);
+    const dx = (f % cols) * cw, dy = Math.floor(f / cols) * ch;
+    if (immersion) {
+      // Immersion looks at the *back* of each face, which would show the image
+      // reversed. Pre-mirror it horizontally within its own cell so the back
+      // view reads the same way a normal outward-facing face does.
+      textureCtx.save();
+      textureCtx.translate(dx + cw, dy);
+      textureCtx.scale(-1, 1);
+      textureCtx.drawImage(src, 0, 0, cw, ch);
+      textureCtx.restore();
+    } else {
+      textureCtx.drawImage(src, dx, dy, cw, ch);
+    }
   }
   faceTexture.needsUpdate = true;
 }
@@ -1542,6 +1564,7 @@ exportBtn.addEventListener('click', async () => {
   try {
     if (!renderer) initThree();
     const res = currentRes();
+    const immersed = immersion;   // lock the mode for this export's calibration
     const exportRenderer = transparent ? ensureTransRenderer() : renderer;
     const exportCanvas = transparent ? transCanvas : glcanvas;
     exportRenderer.setSize(res, res, false);   // render at the chosen output resolution
@@ -1608,7 +1631,7 @@ exportBtn.addEventListener('click', async () => {
       // Calibrate the estimator from this real result so future estimates for
       // the same image are accurate (per-pixel, so they track the resolution
       // slider too), then refresh the displayed estimate.
-      if (total > 0) bytesPerPixel = blob.size / (total * res * res);
+      if (total > 0) bytesPerPixel[immersed ? 'immersion' : 'normal'] = blob.size / (total * res * res);
       updateEstimate();
       const kb = (blob.size/1024).toFixed(0);
       const faceNote = ` · ${usedCount()} face${usedCount() > 1 ? 's' : ''}${anyGif ? ' · animated' : ''}`;
