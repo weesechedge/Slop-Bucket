@@ -468,7 +468,7 @@
       </div>
     </div>
     <div class="row" id="immControls" style="display:none">
-      <div class="panel-hint">camera sits at the centre looking out · X / Y / Z spin the camera itself, independent of the object · speeds snap to whole turns per loop so the gif stays seamless · 0 = still</div>
+      <div class="panel-hint">camera sits at the centre looking out · field of view is a fisheye up to a full 360° (disc edge = directly behind you) · X / Y / Z spin the camera itself, independent of the object · speeds snap to whole turns per loop so the gif stays seamless · 0 = still</div>
       <div class="slider-row"><span class="mini">Field of view</span><input type="range" id="camFov" min="1" max="360" step="1" value="90"><div class="val" id="camFovVal">90°</div></div>
       <div class="slider-row"><span class="mini">X rot/min</span><input type="range" id="camX" min="0" max="10" step="1" value="0"><div class="val" id="camXVal">0</div></div>
       <div class="slider-row"><span class="mini">Y rot/min</span><input type="range" id="camY" min="0" max="10" step="1" value="0"><div class="val" id="camYVal">0</div></div>
@@ -1288,14 +1288,17 @@ function camTurnsFor(slider) {
 function applyCamera(t) {
   if (!camera) return;
   if (immersion) {
-    const fov = parseInt(camFov.value, 10);   // user-set field of view (1°–360°)
-    if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    // The immersion FOV can reach a full 360°, past what a perspective camera can
+    // do, so the view isn't rendered with this camera — a cube-map fisheye pass
+    // (renderFrame) handles it. Here we only need the camera's centre position and
+    // its rpm-driven orientation, which the fisheye pass uses to aim the sampling.
     camera.position.set(0, 0, 0);           // centre of the object
     camera.rotation.set(
       camTurnsFor(camX) * t * TAU,
       camTurnsFor(camY) * t * TAU,
       camTurnsFor(camZ) * t * TAU
     );
+    camera.updateMatrixWorld();
   } else {                                   // normal (outside) view
     if (camera.fov !== NORMAL_FOV) { camera.fov = NORMAL_FOV; camera.updateProjectionMatrix(); }
     camera.position.set(0, 0, camDefaultZ);
@@ -1316,6 +1319,13 @@ const glcanvas = document.getElementById('glcanvas');
 let renderer, previewRenderer, threeScene, camera, mesh;
 let transRenderer = null, transCanvas = null;
 
+/* Immersion fisheye. A perspective camera tops out below 180°, so for the
+   immersion view we capture the surroundings from the object's centre into a cube
+   map (all six directions, including behind) and reproject it through a fullscreen
+   fisheye shader whose FOV can reach a full 360° — at 360° the disc edge is the
+   point directly behind the camera. Created lazily on first immersion render. */
+let cubeRT = null, cubeCam = null, fisheyeScene = null, fisheyeMat = null, orthoCam = null, camRotMat = null;
+
 /* Renderer for transparent export. Separate from the dark one because it needs
    antialiasing OFF — GIF's 1-bit transparency can't represent the half-opaque
    pixels AA produces, so they'd leave a coloured fringe around the shape. It
@@ -1330,6 +1340,72 @@ function ensureTransRenderer() {
   transRenderer.setSize(r, r, false);   // match the current resolution slider
   transRenderer.setClearColor(CHROMA_KEY, 1);
   return transRenderer;
+}
+
+/* Build the cube-map + fisheye pipeline used by immersion mode (once). The cube
+   camera renders the scene from the centre into all six faces; the fisheye shader
+   then samples that cube along a per-pixel direction, so a single square output
+   can show anything from a narrow cone up to the whole 360° sphere. */
+function ensureFisheye() {
+  if (cubeRT) return;
+  cubeRT = new THREE.WebGLCubeRenderTarget(1024, {
+    format: THREE.RGBAFormat, generateMipmaps: false,
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+  });
+  cubeCam = new THREE.CubeCamera(0.02, 100, cubeRT);   // sits at the object's centre
+  cubeCam.position.set(0, 0, 0);
+  cubeCam.updateMatrixWorld();
+  camRotMat = new THREE.Matrix3();
+  orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  fisheyeMat = new THREE.ShaderMaterial({
+    transparent: true, depthTest: false, depthWrite: false,
+    uniforms: {
+      envMap: { value: cubeRT.texture },
+      fovRad: { value: Math.PI / 2 },
+      camRot: { value: new THREE.Matrix3() },
+    },
+    vertexShader: `
+      varying vec2 vPos;
+      void main() { vPos = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform samplerCube envMap;
+      uniform float fovRad;      // full field of view in radians (up to 2π = 360°)
+      uniform mat3 camRot;       // camera orientation (its rpm-driven spin)
+      varying vec2 vPos;         // -1..1 across the square
+      void main() {
+        float r = length(vPos);
+        if (r > 1.0) discard;                 // circular fisheye; corners = background
+        float theta = r * fovRad * 0.5;       // 0 straight ahead … π directly behind
+        float phi = atan(vPos.y, vPos.x);
+        float st = sin(theta);
+        vec3 dir = vec3(st * cos(phi), st * sin(phi), -cos(theta));  // camera faces -Z
+        gl_FragColor = textureCube(envMap, camRot * dir);
+      }
+    `,
+  });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fisheyeMat);
+  quad.frustumCulled = false;
+  fisheyeScene = new THREE.Scene();
+  fisheyeScene.add(quad);
+}
+
+/* Render one frame with the given renderer. Normal mode renders the scene straight
+   through the perspective camera; immersion mode captures the surroundings into the
+   cube map and reprojects them through the fisheye so the FOV can span 360°. Both
+   the preview and the export go through here, so the export matches the preview. */
+function renderFrame(rendererObj) {
+  if (immersion) {
+    ensureFisheye();
+    fisheyeMat.uniforms.fovRad.value = parseInt(camFov.value, 10) * Math.PI / 180;
+    camRotMat.setFromMatrix4(camera.matrixWorld);   // aim the fisheye with the camera's spin
+    fisheyeMat.uniforms.camRot.value.copy(camRotMat);
+    cubeCam.update(rendererObj, threeScene);        // capture all directions from the centre
+    rendererObj.render(fisheyeScene, orthoCam);
+  } else {
+    rendererObj.render(threeScene, camera);
+  }
 }
 
 function initThree() {
@@ -1536,7 +1612,7 @@ function previewTick(now) {
   // Static images are painted once in buildMesh; only animated gifs need a fresh
   // atlas each tick. Each gif plays at its own native speed in the preview.
   if (hasAnyGif()) drawFaces(item => elapsed % item.gifDuration);
-  previewRenderer.render(threeScene, camera);
+  renderFrame(previewRenderer);
   requestAnimationFrame(previewTick);
 }
 
@@ -1604,7 +1680,7 @@ exportBtn.addEventListener('click', async () => {
       // Drive each gif so it completes its whole cycles over the export and lands
       // on a cycle boundary at the loop seam.
       if (anyGif) drawFaces(item => ((t * item.cycles) % 1) * item.gifDuration);
-      exportRenderer.render(threeScene, camera);
+      renderFrame(exportRenderer);
       // dispose:2 (restore to background) keeps the moving shape from leaving a
       // trail through the transparent areas of earlier frames.
       gif.addFrame(exportCanvas, transparent ? { copy: true, delay, dispose: 2 } : { copy: true, delay });
