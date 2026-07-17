@@ -649,31 +649,70 @@ function updateOverflowWarning() {
   }
 }
 
+// Faces only ever sample a CELL_PX (256) atlas cell, so imported media is
+// downscaled to bounded sizes on load — this is what lets arbitrarily large
+// images/gifs import without exhausting memory, with no visible quality loss.
+const IMG_MAX = 1024;        // cap for a single static face image (generous margin)
+const GIF_FRAME_MAX = 256;   // cap per gif frame — frame count multiplies, so keep tight
+const THUMB_MAX = 128;       // panel thumbnail size
+
 function revokeItems(items) { items.forEach(i => { if (i && i.url) URL.revokeObjectURL(i.url); }); }
 
-// Load one file into a media item, decoding animated gifs to frames.
-function loadOneMedia(file) {
+// Downscale any drawable source (image/canvas) into a new canvas no larger than
+// maxDim on its long edge. Returns the source's own size if it's already smaller.
+function downscaleToCanvas(source, sw, sh, maxDim) {
+  const scale = Math.min(1, maxDim / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale)), h = Math.max(1, Math.round(sh * scale));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(source, 0, 0, w, h);
+  return c;
+}
+// A small self-contained thumbnail (data URL) for the panel — avoids the panel
+// <img> re-decoding a huge original file just to show a 112px preview.
+function thumbURL(srcCanvas) {
+  return downscaleToCanvas(srcCanvas, srcCanvas.width, srcCanvas.height, THUMB_MAX).toDataURL('image/png');
+}
+// Decode a static image file and downscale it, freeing the original decode.
+function loadStaticCanvas(file) {
   return new Promise(resolve => {
     const url = URL.createObjectURL(file);
-    const el = new Image();
-    el.onload = async () => {
-      const item = { el, url, count: 1, isGif: false, gifFrames: null, gifDuration: 0 };
-      if (file.type === 'image/gif') {
-        try {
-          const { width: gw, height: gh, frames } = parseGifFrames(await file.arrayBuffer());
-          const built = buildGifFrameCanvases(frames, gw, gh);
-          if (built.length > 1) {
-            item.gifFrames = built;
-            item.gifDuration = built.reduce((s, f) => s + f.delay, 0);
-            item.isGif = true;
-          }
-        } catch (e) { console.error('gif decode failed', e); }
-      }
-      resolve(item);
+    const img = new Image();
+    img.onload = () => {
+      let c = null;
+      try { c = downscaleToCanvas(img, img.naturalWidth || img.width, img.naturalHeight || img.height, IMG_MAX); }
+      catch (e) { console.error('image decode failed', e); }
+      URL.revokeObjectURL(url);   // original decode no longer needed
+      resolve(c);
     };
-    el.onerror = () => { URL.revokeObjectURL(url); resolve(null); };  // skip files that fail
-    el.src = url;
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
   });
+}
+
+// Load one file into a media item. Everything is stored downscaled (item.el is a
+// bounded canvas; gif frames are bounded canvases; item.url is a tiny data-URL
+// thumbnail), so imports succeed at any source size.
+async function loadOneMedia(file) {
+  try {
+    if (file.type === 'image/gif') {
+      let frames = null;
+      try { frames = decodeGif(await file.arrayBuffer(), GIF_FRAME_MAX).frames; }
+      catch (e) { console.error('gif decode failed', e); }
+      if (frames && frames.length > 1) {
+        return {
+          el: frames[0].canvas, url: thumbURL(frames[0].canvas), count: 1,
+          isGif: true, gifFrames: frames, gifDuration: frames.reduce((s, f) => s + f.delay, 0),
+        };
+      }
+      // Single-frame gif or decode failure → fall through and treat it as static.
+    }
+    const canvas = await loadStaticCanvas(file);
+    if (!canvas) return null;   // couldn't load this file → skip it
+    return { el: canvas, url: thumbURL(canvas), count: 1, isGif: false, gifFrames: null, gifDuration: 0 };
+  } catch (e) {
+    console.error('media load failed', e);
+    return null;
+  }
 }
 
 // Merge newly loaded items into mediaItems according to the mode:
@@ -959,8 +998,13 @@ function lzwDecode(minCodeSize, data, pixelCount) {
   return out;
 }
 
-/* Parse a GIF into logical-screen size + per-frame RGBA patches */
-function parseGifFrames(buffer) {
+/* Decode a GIF straight to per-frame canvases in a single streaming pass. Each
+   frame is composited into one reused full-size canvas (honouring disposal so
+   motion is correct) and then snapshotted into a canvas capped at `maxDim`. The
+   large per-frame pixel buffers are transient — freed each iteration — so even a
+   huge or very long gif stays within a bounded amount of memory (only the small,
+   downscaled snapshots are retained). Returns { width, height, frames }. */
+function decodeGif(buffer, maxDim) {
   const data = new Uint8Array(buffer);
   if (String.fromCharCode(data[0], data[1], data[2]) !== 'GIF') throw new Error('not a gif');
   let p = 6;
@@ -977,6 +1021,17 @@ function parseGifFrames(buffer) {
     for (const c of chunks) { out.set(c, o); o += c.length; }
     return out;
   };
+
+  // Output (snapshot) size: downscaled so the retained frames stay small.
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  const ow = Math.max(1, Math.round(width * scale)), oh = Math.max(1, Math.round(height * scale));
+
+  // One full-size compositing canvas + one patch canvas, both reused every frame.
+  const full = document.createElement('canvas'); full.width = width; full.height = height;
+  const fctx = full.getContext('2d');
+  const patch = document.createElement('canvas');
+  const pctx = patch.getContext('2d');
+  let saved = null; // snapshot for disposal type 3 (restore to previous)
 
   const frames = [];
   let gce = null;
@@ -1002,7 +1057,7 @@ function parseGifFrames(buffer) {
       const minCode = data[p++];
       const indices = lzwDecode(minCode, readSubBlocks(), iw * ih);
 
-      const patch = new Uint8ClampedArray(iw * ih * 4);
+      const patchData = new Uint8ClampedArray(iw * ih * 4);
       const transFlag = gce && gce.transFlag;
       const transIndex = gce ? gce.transIndex : -1;
       const rows = interlace ? deinterlaceRows(ih) : null;
@@ -1011,48 +1066,31 @@ function parseGifFrames(buffer) {
         for (let x = 0; x < iw; x++) {
           const idx = indices[y * iw + x];
           const di = (dstY * iw + x) * 4;
-          if (transFlag && idx === transIndex) { patch[di+3] = 0; continue; }
+          if (transFlag && idx === transIndex) { patchData[di+3] = 0; continue; }
           const ci = idx * 3;
-          patch[di] = ct[ci]; patch[di+1] = ct[ci+1]; patch[di+2] = ct[ci+2]; patch[di+3] = 255;
+          patchData[di] = ct[ci]; patchData[di+1] = ct[ci+1]; patchData[di+2] = ct[ci+2]; patchData[di+3] = 255;
         }
       }
-      frames.push({ dims: { left, top, width: iw, height: ih }, disposalType: gce ? gce.disposal : 0, delay: gce ? gce.delay : 0, patch });
+
+      const disposalType = gce ? gce.disposal : 0;
+      if (disposalType === 3) saved = fctx.getImageData(0, 0, width, height);
+      // Composite this (possibly partial) frame onto the running full-size canvas.
+      patch.width = iw; patch.height = ih;
+      const id = pctx.createImageData(iw, ih);
+      id.data.set(patchData);
+      pctx.putImageData(id, 0, 0);
+      fctx.drawImage(patch, left, top);
+      // Retain only a downscaled snapshot; the full-size buffers above are reused.
+      const snap = document.createElement('canvas'); snap.width = ow; snap.height = oh;
+      snap.getContext('2d').drawImage(full, 0, 0, ow, oh);
+      frames.push({ canvas: snap, delay: (gce ? gce.delay : 0) || 100 });
+
+      if (disposalType === 2) fctx.clearRect(left, top, iw, ih);
+      else if (disposalType === 3 && saved) fctx.putImageData(saved, 0, 0);
       gce = null;                               // GCE applies to the next image only
     } else break;                               // unknown → stop safely
   }
   return { width, height, frames };
-}
-
-/* Composite each (possibly partial) gif frame into a full-size canvas,
-   honouring disposal methods so motion renders correctly. */
-function buildGifFrameCanvases(frames, gw, gh) {
-  const out = [];
-  const full = document.createElement('canvas');
-  full.width = gw; full.height = gh;
-  const fctx = full.getContext('2d');
-  const patch = document.createElement('canvas');
-  const pctx = patch.getContext('2d');
-  let saved = null; // snapshot for disposal type 3 (restore to previous)
-
-  for (const frame of frames) {
-    const { dims, disposalType, delay } = frame;
-    if (disposalType === 3) saved = fctx.getImageData(0, 0, gw, gh);
-
-    patch.width = dims.width; patch.height = dims.height;
-    const id = pctx.createImageData(dims.width, dims.height);
-    id.data.set(frame.patch);
-    pctx.putImageData(id, 0, 0);
-    fctx.drawImage(patch, dims.left, dims.top);
-
-    const snap = document.createElement('canvas');
-    snap.width = gw; snap.height = gh;
-    snap.getContext('2d').drawImage(full, 0, 0);
-    out.push({ canvas: snap, delay: delay || 100 });
-
-    if (disposalType === 2) fctx.clearRect(dims.left, dims.top, dims.width, dims.height);
-    else if (disposalType === 3 && saved) fctx.putImageData(saved, 0, 0);
-  }
-  return out;
 }
 
 drop.addEventListener('click', () => openPicker('all'));   // main box → replace all
@@ -1642,6 +1680,10 @@ exportBtn.addEventListener('click', async () => {
   if (!mediaItems.length) return;
   exportBtn.disabled = true;
   result.classList.remove('show');
+  // Release the previous export's gif (image + blob) before building the next one,
+  // so exporting large gifs repeatedly doesn't stack their memory.
+  outImg.removeAttribute('src');
+  if (lastOutURL) { URL.revokeObjectURL(lastOutURL); lastOutURL = null; }
   progress.classList.add('show');
   bar.style.width = '0%';
   statusEl.textContent = 'initialising…';
@@ -1733,7 +1775,12 @@ exportBtn.addEventListener('click', async () => {
 
   } catch (err) {
     console.error(err);
-    statusEl.textContent = 'error: ' + err.message;
+    // Out-of-memory (huge resolution × many frames) throws a RangeError / alloc
+    // failure — point the user at the two sliders that reduce the memory needed.
+    const oom = /alloc|memory|RangeError/i.test(err.name + ' ' + err.message);
+    statusEl.textContent = oom
+      ? 'export too large for memory · lower the Resolution or shorten the Speed/Frame-rate and try again'
+      : 'error: ' + err.message;
     progress.classList.remove('show');
     exportBtn.disabled = false;
     startPreview();   // resume the live spin even if export failed
