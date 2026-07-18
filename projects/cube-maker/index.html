@@ -1496,6 +1496,17 @@ function cellUV(f) {
   };
 }
 
+// Phase (ms into a gif's own timeline) for loop-fraction t ∈ [0,1), driving the
+// gif through a whole number of its own cycles across the loop of length loopMs
+// (nearest to native speed, min 1) so it lands back on frame 0 at the loop seam.
+// The preview and the export both call this, so the display always shows the same
+// sped-up/slowed sub-gifs the exported gif will — e.g. a 30s gif on a 4s loop runs
+// one full cycle in 4s in both.
+function gifLoopPhase(item, t, loopMs) {
+  const cycles = Math.max(1, Math.round(loopMs / item.gifDuration));
+  return ((t * cycles) % 1) * item.gifDuration;
+}
+
 // Pick the gif frame for an item at a given phase (ms into its own loop).
 function gifFrameCanvasAt(item, phaseMs) {
   const tms = item.gifDuration > 0 ? (phaseMs % item.gifDuration) : 0;
@@ -1659,8 +1670,9 @@ function previewTick(now) {
   applyAnimation(t);
   applyCamera(t);   // immersion camera (or restores the normal outside view)
   // Static images are painted once in buildMesh; only animated gifs need a fresh
-  // atlas each tick. Each gif plays at its own native speed in the preview.
-  if (hasAnyGif()) drawFaces(item => elapsed % item.gifDuration);
+  // atlas each tick. Drive each gif exactly as the export does (shared gifLoopPhase)
+  // so the display shows the same sped-up/slowed sub-gifs the exported gif will.
+  if (hasAnyGif()) drawFaces(item => gifLoopPhase(item, t, period));
   renderFrame(previewRenderer);
   requestAnimationFrame(previewTick);
 }
@@ -1707,10 +1719,8 @@ exportBtn.addEventListener('click', async () => {
     // Each embedded gif plays a whole number of its own cycles across the export
     // (nearest to native speed, min 1) so every gif face lands back on frame 0 at
     // the loop seam — a seamless loop even with many gifs of differing lengths.
+    // The exact same gifLoopPhase() drives the live preview, so they always match.
     const anyGif = hasAnyGif();
-    mediaItems.forEach(m => {
-      if (m.isGif) m.cycles = Math.max(1, Math.round(duration * 1000 / m.gifDuration));
-    });
     if (!anyGif) drawFaces(() => 0);   // static: paint the atlas once
 
     const gif = new GIF({
@@ -1732,7 +1742,7 @@ exportBtn.addEventListener('click', async () => {
       applyCamera(t);      // immersion camera — driven identically to the preview
       // Drive each gif so it completes its whole cycles over the export and lands
       // on a cycle boundary at the loop seam.
-      if (anyGif) drawFaces(item => ((t * item.cycles) % 1) * item.gifDuration);
+      if (anyGif) drawFaces(item => gifLoopPhase(item, t, duration * 1000));
       renderFrame(exportRenderer);
       // dispose:2 (restore to background) keeps the moving shape from leaving a
       // trail through the transparent areas of earlier frames.
