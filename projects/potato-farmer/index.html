@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Potato Farmer — A Real-Time Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#15171c; --panel2:#1b1e25; --panel3:#21252e; --line:#2c313c;
+    --ink:#e9e7e1; --muted:#9aa0ab; --faint:#646b78; --dim:#4b525e;
+    --accent:#e0903f; --accent2:#f0b46a; --spud:#c98b4b;
+    --green:#7bd36a; --blue:#5b8bd6; --red:#e06a6a;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --serif:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    background-image:radial-gradient(circle at 12% -8%,rgba(224,144,63,.07),transparent 44%),
+                     radial-gradient(circle at 92% 2%,rgba(91,139,214,.05),transparent 42%);
+    color:var(--ink); font-family:var(--mono); min-height:100vh;
+    -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:64px 18px 90px}
+
+  /* ---------- header ---------- */
+  header.top{border-bottom:1px solid var(--line);padding:18px 0 22px;margin-bottom:22px}
+  .kicker{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-bottom:11px}
+  h1{font-family:var(--serif);font-weight:900;font-size:clamp(30px,6.4vw,52px);line-height:1;letter-spacing:-.015em;margin:0}
+  h1 .paren{color:var(--faint);font-weight:400;font-size:.44em;letter-spacing:0;display:block;margin-top:10px;font-family:var(--mono)}
+  .sub{margin-top:15px;color:var(--muted);font-size:14px;max-width:74ch;line-height:1.65}
+  .sub b{color:var(--ink);font-weight:600}
+
+  /* ---------- panels ---------- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .panel h2{font-family:var(--serif);font-size:19px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+  .panel .cap{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+  .grid{display:grid;gap:16px}
+  @media(min-width:860px){ .cols{grid-template-columns:1.45fr 1fr} }
+
+  /* ---------- scene ---------- */
+  #scene{display:block;width:100%;height:230px;border:1px solid var(--line);border-radius:14px;background:#0b0d11;margin-bottom:16px;cursor:crosshair}
+  .scenehint{margin:-10px 0 18px;font-size:11px;color:var(--dim);text-align:right;letter-spacing:.04em}
+
+  /* ---------- the clock ---------- */
+  .clockbox{text-align:center;padding:6px 0 2px}
+  .gdate{font-family:var(--serif);font-weight:600;font-size:clamp(21px,4.4vw,31px);letter-spacing:-.01em;line-height:1.15}
+  .gdate .yr{color:var(--accent2)}
+  .gtime{font-size:clamp(28px,7vw,44px);font-weight:600;letter-spacing:.06em;color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums}
+  .gseason{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin-top:8px}
+
+  /* ---------- progress ---------- */
+  .barwrap{margin-top:20px}
+  .barlabels{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .bar{position:relative;height:26px;background:#0c0e12;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .bar .fill{position:absolute;left:0;top:0;bottom:0;width:0;
+    background:linear-gradient(90deg,#8a5a24,var(--accent));box-shadow:0 0 14px rgba(224,144,63,.45);transition:width .28s linear}
+  .bar .ticks{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,transparent 1px 10%)}
+  .pct{margin-top:9px;text-align:center;font-size:clamp(15px,3.4vw,20px);font-weight:600;color:var(--accent2);font-variant-numeric:tabular-nums}
+  .pctsub{text-align:center;font-size:11px;color:var(--faint);margin-top:4px}
+
+  .zoomrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:14px}
+  .zoomrow .lab{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-right:2px}
+
+  button{font-family:var(--mono);cursor:pointer}
+  .btn{font-size:11.5px;font-weight:600;letter-spacing:.05em;color:var(--ink);background:var(--panel2);
+    border:1px solid var(--line);padding:7px 12px;border-radius:8px;transition:.14s}
+  .btn:hover{border-color:var(--accent);color:var(--accent2)}
+  .btn.on{background:linear-gradient(180deg,#2c2418,#231d14);border-color:#6a5330;color:var(--accent2)}
+  .btn.ghost{color:var(--faint)}
+  .btn:disabled{opacity:.42;cursor:not-allowed}
+  .btn:disabled:hover{border-color:var(--line);color:var(--faint)}
+  .btn.big{font-size:14px;padding:13px 20px;letter-spacing:.14em;text-transform:uppercase}
+
+  /* ---------- stat rows ---------- */
+  .rows{display:grid;gap:0}
+  .r{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:9px 0;border-bottom:1px dashed #23272f}
+  .r:last-child{border-bottom:0}
+  .r .k{color:var(--muted);font-size:12px;line-height:1.45}
+  .r .v{font-size:13px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .v.acc{color:var(--accent2)} .v.bad{color:var(--red)} .v.good{color:var(--green)} .v.dim{color:var(--faint);font-weight:400}
+
+  /* ---------- countdown ---------- */
+  .cd{margin-top:2px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
+  .cd .ev{font-family:var(--serif);font-size:16px;font-weight:600;line-height:1.3}
+  .cd .evy{font-size:11px;color:var(--faint);letter-spacing:.14em;text-transform:uppercase;margin-top:5px}
+  .cd .num{font-size:clamp(17px,4vw,23px);font-weight:600;color:var(--accent2);margin-top:11px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .cd .numsub{font-size:11px;color:var(--faint);margin-top:4px}
+
+  /* ---------- timeline ---------- */
+  .tl{position:relative;height:74px;margin:6px 0 4px;border-bottom:1px solid var(--line)}
+  .tl .track{position:absolute;left:0;right:0;top:38px;height:3px;background:linear-gradient(90deg,var(--accent),#3a4150 4%,#3a4150 96%,var(--spud))}
+  .tl .tick{position:absolute;top:32px;width:1px;height:15px;background:#39404d}
+  .tl .tick.major{background:var(--muted);height:21px;top:29px}
+  .tl .you{position:absolute;top:14px;width:2px;height:44px;background:var(--accent);box-shadow:0 0 10px rgba(224,144,63,.85)}
+  .tl .youlab{position:absolute;top:0;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);white-space:nowrap}
+  .tl .endlab{position:absolute;top:0;right:0;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--spud);white-space:nowrap}
+  .tlnote{font-size:11px;color:var(--faint);margin-top:9px;line-height:1.55}
+  .evlist{margin-top:14px;max-height:196px;overflow-y:auto;padding-right:6px}
+  .evlist::-webkit-scrollbar{width:8px}
+  .evlist::-webkit-scrollbar-thumb{background:#2b303a;border-radius:4px}
+  .ev-row{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px dashed #22262e;font-size:12px}
+  .ev-row .y{color:var(--faint);font-variant-numeric:tabular-nums}
+  .ev-row .t{color:var(--muted);line-height:1.4}
+  .ev-row .w{font-size:11px;color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .ev-row.next{background:#191c22}
+  .ev-row.next .y{color:var(--accent)} .ev-row.next .t{color:var(--ink)}
+  .ev-row.finale .t{color:var(--spud);font-weight:600}
+
+  /* ---------- forage ---------- */
+  .forage{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  #log{height:150px;overflow-y:auto;background:#0c0e12;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:12px;line-height:1.6}
+  #log::-webkit-scrollbar{width:8px}
+  #log::-webkit-scrollbar-thumb{background:#2b303a;border-radius:4px}
+  #log .l{color:var(--muted);border-bottom:1px dashed #1c2027;padding:3px 0}
+  #log .l:last-child{border-bottom:0}
+  #log .l .t{color:var(--dim);margin-right:8px;font-size:11px}
+  #log .l.good{color:var(--ink)} #log .l.rare{color:var(--accent2)}
+  #log .l.sys{color:var(--blue)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:11px;color:var(--muted)}
+  .chip b{color:var(--ink);font-weight:600}
+
+  /* ---------- locked field ---------- */
+  .locked{position:relative;overflow:hidden;border-style:dashed;border-color:#3a3125;background:
+    repeating-linear-gradient(135deg,#14161b 0 12px,#171a20 12px 24px)}
+  .locked .inner{filter:blur(2.4px);opacity:.5;pointer-events:none;user-select:none}
+  .locked .over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:18px;gap:8px;background:rgba(15,17,21,.55)}
+  .locked .over .lk{font-size:26px}
+  .locked .over .msg{font-family:var(--serif);font-size:clamp(15px,3.4vw,20px);font-weight:600}
+  .locked .over .when{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);}
+  .plots{display:grid;grid-template-columns:repeat(12,1fr);gap:6px}
+  .plot{aspect-ratio:1;background:#2a2118;border:1px solid #3a2f22;border-radius:5px}
+  .plot::after{content:'';display:block;width:6px;height:6px;margin:38% auto;border-radius:50%;background:var(--spud)}
+
+  /* ---------- achievements ---------- */
+  .ach{display:grid;gap:8px}
+  @media(min-width:620px){ .ach{grid-template-columns:1fr 1fr} }
+  .a{display:grid;grid-template-columns:22px 1fr;gap:11px;align-items:start;background:var(--panel2);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .a .mk{font-size:14px;color:var(--dim);line-height:1.3}
+  .a .nm{font-size:12.5px;font-weight:600;color:var(--faint)}
+  .a .ds{font-size:11px;color:var(--dim);margin-top:3px;line-height:1.45}
+  .a.got{border-color:#4d4029;background:#1d1a14}
+  .a.got .mk{color:var(--accent)} .a.got .nm{color:var(--accent2)} .a.got .ds{color:var(--muted)}
+  .a.never{opacity:.72}
+  .a.never .nm::after{content:' · unreachable';color:var(--dim);font-weight:400;letter-spacing:.04em}
+
+  /* ---------- misc ---------- */
+  .note{font-size:12px;color:var(--faint);line-height:1.65;margin-top:14px}
+  .note b{color:var(--muted)}
+  footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:12px;line-height:1.7}
+  footer a{color:var(--blue);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+  .footrow{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+
+  #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,26px);z-index:9998;max-width:min(560px,92vw);
+    background:#1b1e25;border:1px solid var(--accent);border-radius:12px;padding:13px 17px;font-size:12.5px;line-height:1.6;
+    color:var(--ink);box-shadow:0 12px 34px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.35s}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #toast .th{color:var(--accent2);font-weight:600;display:block;margin-bottom:4px;letter-spacing:.04em}
+  .spin{display:inline-block;animation:sp 9s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Potato Farmer</span></nav>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="kicker">Slop &amp; Churn Fest · Real-Time Simulation</div>
+    <h1>Potato Farmer<span class="paren">a potato farming simulator, played in real time, beginning at the agricultural revolution</span></h1>
+    <p class="sub">The aim of the game is to be a potato farmer, farming potatoes. That is the whole game. There is
+      one condition: the simulation begins at the <b>start of the agricultural revolution</b>, roughly 10,000&nbsp;BC,
+      and it runs in <b>real time</b> — one second of your life is one second of the Neolithic. You must get through
+      the entire intervening span before the potato farming unlocks. Until you are a potato farmer, you have not
+      finished the game.</p>
+  </header>
+
+  <canvas id="scene"></canvas>
+  <div class="scenehint">the site of your future potato field · click the ground to forage</div>
+
+  <div class="grid cols" style="margin-bottom:16px">
+
+    <div class="panel">
+      <h2>The Clock</h2>
+      <p class="cap">running at ×1 real time · no fast-forward exists</p>
+
+      <div class="clockbox">
+        <div class="gdate" id="gdate">—</div>
+        <div class="gtime" id="gtime">--:--:--</div>
+        <div class="gseason" id="gseason">—</div>
+      </div>
+
+      <div class="barwrap">
+        <div class="barlabels"><span id="barL">10,000 BC</span><span id="barR">potato · 2026 AD</span></div>
+        <div class="bar"><div class="fill" id="fill"></div><div class="ticks"></div></div>
+        <div class="pct" id="pct">0.000000000000&thinsp;%</div>
+        <div class="pctsub" id="pctsub">of the way to being allowed to grow a potato</div>
+
+        <div class="zoomrow">
+          <span class="lab">Microscope</span>
+          <button class="btn on" data-zoom="1">×1</button>
+          <button class="btn" data-zoom="1000">×1k</button>
+          <button class="btn" data-zoom="1000000">×1M</button>
+          <button class="btn" data-zoom="1000000000">×1B</button>
+        </div>
+        <div class="pctsub" id="zoomnote" style="margin-top:9px">The bar shows the full 12,026 years. It will not appear to move, because it is not moving.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Your Situation</h2>
+      <p class="cap">assessed honestly</p>
+      <div class="rows">
+        <div class="r"><span class="k">Time remaining</span><span class="v acc" id="sRemY">—</span></div>
+        <div class="r"><span class="k">…in seconds</span><span class="v" id="sRemS">—</span></div>
+        <div class="r"><span class="k">Elapsed since you began</span><span class="v good" id="sElapsed">—</span></div>
+        <div class="r"><span class="k">Projected completion</span><span class="v" id="sFinish">—</span></div>
+        <div class="r"><span class="k">You will be dead for</span><span class="v bad" id="sDead">—</span></div>
+        <div class="r"><span class="k">Generations still required</span><span class="v" id="sGens">—</span></div>
+        <div class="r"><span class="k">Sessions played</span><span class="v dim" id="sSessions">—</span></div>
+        <div class="r"><span class="k">Time actually watched</span><span class="v dim" id="sWatched">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid cols" style="margin-bottom:16px">
+
+    <div class="panel">
+      <h2>The Lineage</h2>
+      <p class="cap">the tab must be inherited</p>
+      <div class="rows" style="margin-bottom:14px">
+        <div class="r"><span class="k">Current forager</span><span class="v acc" id="lName">—</span></div>
+        <div class="r"><span class="k">Age</span><span class="v" id="lAge">—</span></div>
+        <div class="r"><span class="k">Dies in</span><span class="v" id="lDies">—</span></div>
+        <div class="r"><span class="k">Generation</span><span class="v" id="lGen">—</span></div>
+      </div>
+      <div class="cd">
+        <div class="ev" id="cdEv">—</div>
+        <div class="evy" id="cdEvY">—</div>
+        <div class="num" id="cdNum">—</div>
+        <div class="numsub" id="cdSub">until the next thing that happens in human history</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Foraging</h2>
+      <p class="cap">agriculture has not been invented · this is all there is</p>
+      <div class="forage">
+        <button class="btn big" id="btnForage">Forage</button>
+        <button class="btn ghost" id="btnFast" title="no">Fast-forward</button>
+      </div>
+      <div id="log"></div>
+      <div class="chips">
+        <span class="chip">calories <b id="cCal">0</b></span>
+        <span class="chip">things found <b id="cFinds">0</b></span>
+        <span class="chip">tubers that are not potatoes <b id="cTuber">0</b></span>
+        <span class="chip">potatoes <b id="cSpud">0</b></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Twelve Thousand Years, To Scale</h2>
+    <p class="cap">you are the orange line on the left</p>
+    <div class="tl" id="tl">
+      <div class="track"></div>
+      <div class="you" style="left:0"></div>
+      <div class="youlab" style="left:0">you are here</div>
+      <div class="endlab">potato</div>
+    </div>
+    <div class="tlnote" id="tlnote">Every tick is something that had to happen before you were allowed to plant a potato. Your marker has moved <span id="tlmoved">0.000000</span> pixels since you started.</div>
+    <div class="evlist" id="evlist"></div>
+  </div>
+
+  <div class="panel locked" style="margin-bottom:16px">
+    <div class="inner">
+      <h2>The Potato Field</h2>
+      <p class="cap">soil · seed potatoes · chitting · earthing up · harvest</p>
+      <div class="plots" id="plots"></div>
+    </div>
+    <div class="over">
+      <div class="lk spin">🥔</div>
+      <div class="msg">Potato farming is not yet available.</div>
+      <div class="when" id="lockWhen">unlocks in 12,026 years</div>
+      <div style="font-size:11.5px;color:var(--muted);max-width:50ch;line-height:1.6">This is the actual game. It is fully implemented and entirely playable. It simply cannot be opened until the agricultural revolution has finished happening.</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Achievements</h2>
+    <p class="cap" id="achcap">0 of 12 earned</p>
+    <div class="ach" id="ach"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Rules, Stated Plainly</h2>
+    <p class="cap">so there is no confusion later</p>
+    <div class="note">
+      <b>The clock runs whether the tab is open or not.</b> Time is real. That was the entire point. Closing the
+      page does not pause the agricultural revolution, and neither does opening it.<br><br>
+      <b>Nothing you do affects the timer.</b> Foraging, achievements, the microscope — none of it moves the
+      12,026 years. The tribe survives regardless of your input. You are not needed; you are only required to
+      still be here at the end.<br><br>
+      <b>There is no fast-forward, no prestige, no idle multiplier, and no ending you can reach.</b> The save is
+      stored in this browser, on this device. If you clear it, you start the agricultural revolution again.<br><br>
+      <b>You win by being a potato farmer.</b> Nobody has won.
+    </div>
+    <div class="footrow">
+      <button class="btn" id="btnCopy">Copy status</button>
+      <button class="btn" id="btnNotify">Notify me when it's ready</button>
+      <button class="btn ghost" id="btnReset">Abandon lineage</button>
+    </div>
+  </div>
+
+  <footer>
+    Built for the Slop &amp; Churn Fest from a spoken transcript that was, in fairness, completely clear about
+    what it wanted. · <a href="../../">Back to the Slop-Bucket</a>
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   POTATO FARMER — a real-time simulator
+   Start: 10,000 BC (astronomical year -9999). Target: 2026 AD.
+   Rate: 1 real second = 1 game second. No exceptions, no multipliers.
+   ========================================================================= */
+
+const KEY = 'potato-farmer-realtime-v1';
+
+const MS_YEAR   = 365.2425 * 86400 * 1000;   // mean Gregorian year
+const START_ASTRO_YEAR = -10000;              // displayed as 10,000 BC
+const TARGET_YEAR      = 2026;                // the year you may farm a potato
+const SPAN_YEARS = TARGET_YEAR - START_ASTRO_YEAR;   // 12,026
+const SPAN_MS    = SPAN_YEARS * MS_YEAR;
+
+/* Date.UTC() maps years 0–99 to 1900–1999, which would silently move Vesuvius to
+   1979. setUTCFullYear() has no such quirk, so build every deep-time date here. */
+function ymd(year, month, day){
+  const d = new Date(Date.UTC(2000, month||0, day||1));
+  d.setUTCFullYear(year);
+  return d.getTime();
+}
+const EPOCH_MS   = ymd(START_ASTRO_YEAR, 0, 1);      // game-clock zero
+
+const LIFE_START = 19;   // age at which you inherit the tab
+const LIFE_END   = 34;   // Neolithic life expectancy, generously
+const GEN_YEARS  = LIFE_END - LIFE_START;
+
+/* ---------- save ---------- */
+const DEFAULT_SAVE = {
+  firstLaunch: 0,      // ms epoch of when the agricultural revolution began for you
+  lastSeen: 0,
+  sessions: 0,
+  watchedMs: 0,        // time with the page actually open
+  finds: 0, calories: 0, tubers: 0, potatoes: 0,
+  clicks: 0,
+  ach: {},
+  seenNoEffect: false
+};
+let S = load();
+
+function load(){
+  let s;
+  try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){ s = null; }
+  s = Object.assign({}, DEFAULT_SAVE, s || {});
+  if(!s.ach || typeof s.ach !== 'object') s.ach = {};
+  return s;
+}
+function save(){
+  S.lastSeen = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
+}
+
+const bootNow = Date.now();
+const returning = S.firstLaunch > 0;
+const awayMs = returning ? Math.max(0, bootNow - S.lastSeen) : 0;
+if(!returning) S.firstLaunch = bootNow;
+/* Guard against a clock that has been wound backwards. */
+if(S.firstLaunch > bootNow) S.firstLaunch = bootNow;
+S.sessions += 1;
+save();
+
+const sessionStart = bootNow;
+const watchedBase  = S.watchedMs;
+
+/* ---------- time helpers ---------- */
+/* Game time-of-day is aligned to the player's local time-of-day at first launch,
+   and both clocks tick at the same rate, so they stay aligned forever. */
+const launchDate = new Date(S.firstLaunch);
+const localMidnightOffset =
+  ((launchDate.getHours()*60 + launchDate.getMinutes())*60 + launchDate.getSeconds())*1000
+  + launchDate.getMilliseconds();
+const GAME_ZERO = EPOCH_MS + localMidnightOffset;
+
+function elapsedMs(){ return Math.max(0, Date.now() - S.firstLaunch); }
+function gameMs(){ return GAME_ZERO + elapsedMs(); }
+function progress(){ return Math.min(1, elapsedMs() / SPAN_MS); }
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const ORD = n => { const s=['th','st','nd','rd'], v=n%100; return n + (s[(v-20)%10]||s[v]||s[0]); };
+
+function yearLabel(y){
+  return y < 0 ? fmtYear(-y) + ' BC' : fmtYear(y || 1) + ' AD';
+}
+/* Years only take a thousands separator once they are five digits long —
+   "2026 AD" with a comma in it looks like a mistake. */
+function fmtYear(n){ return n >= 10000 ? fmt(n) : String(Math.round(n)); }
+function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+function pad(n){ return String(n).padStart(2,'0'); }
+
+/* Big spans of time, spelled out honestly.
+   A year here is the mean Gregorian 365.2425 days, so a bare years→days chain can
+   leave a remainder of 365 days — correct, but it reads like an off-by-one. The
+   month unit (a twelfth of that year) keeps every remainder inside its own unit.
+   Zero-valued units are dropped, so "2 hours" never renders as "2 hours, 0 minutes". */
+const UNITS = [
+  ['year',   365.2425*86400],
+  ['month',  365.2425*86400/12],
+  ['day',    86400],
+  ['hour',   3600],
+  ['minute', 60],
+  ['second', 1]
+];
+function spanText(ms, parts){
+  parts = parts || 3;
+  let rem = Math.max(0, ms/1000);
+  const out = [];
+  for(let i=0;i<UNITS.length && out.length<parts;i++){
+    const [name, size] = UNITS[i];
+    const v = Math.floor(rem/size + 1e-9);
+    rem -= v*size;
+    if(v > 0) out.push(fmt(v) + ' ' + name + (v===1?'':'s'));
+  }
+  return out.length ? out.join(', ') : '0 seconds';
+}
+function clockText(ms){
+  const s = Math.max(0, Math.floor(ms/1000));
+  return pad(Math.floor(s/3600)) + ':' + pad(Math.floor(s/60)%60) + ':' + pad(s%60);
+}
+
+/* ---------- history ---------- */
+const EVENTS = [
+  [-9500, 'Wild wheat and barley are domesticated in the Fertile Crescent. Not potatoes.'],
+  [-9000, 'Goats are domesticated. Somebody else does this. You watch.'],
+  [-8500, 'Jericho builds a wall, arguably the first town.'],
+  [-8000, 'The potato is domesticated in the Andes. You are not in the Andes.'],
+  [-7000, 'Pottery. Now there is somewhere to put the things you have not grown.'],
+  [-6000, 'Cattle. Milk. Cheese, eventually. Still no chips.'],
+  [-4000, 'The ard plough is invented, for crops that are not yours.'],
+  [-3200, 'Writing is invented in Sumer, chiefly to count grain.'],
+  [-3000, 'Bronze. Better tools, same lack of potatoes.'],
+  [-2560, 'The Great Pyramid is finished before your farm is started.'],
+  [-1200, 'Iron working spreads. The Bronze Age collapses.'],
+  [-776,  'The first Olympiad. No potato events.'],
+  [-221,  'China is unified; work begins on a very long wall.'],
+  [79,    'Vesuvius buries Pompeii, where there are no potatoes.'],
+  [476,   'The Western Roman Empire falls. You keep foraging.'],
+  [1000,  'Norse sailors reach Newfoundland and miss the potato entirely.'],
+  [1347,  'The Black Death arrives in Europe. Your lineage, statistically, is fine.'],
+  [1440,  'Movable type. Someone can finally write down how to grow a potato.'],
+  [1492,  'Columbus sails, and does not bring back the potato.'],
+  [1532,  'The Spanish reach Peru and meet the potato. Progress at last.'],
+  [1589,  'The potato reaches Europe. Allegedly via Raleigh. Allegedly.'],
+  [1750,  'The potato becomes a staple crop. Others farm it. Not you. Not yet.'],
+  [1845,  'Potato blight. A dreadful time to have finally unlocked potatoes.'],
+  [1853,  'The potato crisp is invented, out of spite, in Saratoga Springs.'],
+  [1969,  'Humans land on the Moon. There are no potatoes on the Moon.'],
+  [1995,  'The first potato is grown in space, which is showing off.'],
+  [TARGET_YEAR, 'YOU BECOME A POTATO FARMER. The game begins.']
+];
+const EV_MS = EVENTS.map(e => [ymd(e[0], 0, 1), e[0], e[1]]);
+
+function nextEvent(){
+  const g = gameMs();
+  for(const e of EV_MS){ if(e[0] > g) return e; }
+  return EV_MS[EV_MS.length-1];
+}
+
+/* ---------- names ---------- */
+const NAMES = ['Ug','Nan','Bo','Tesh','Mirr','Kel','Ash','Ora','Vek','Sil','Han','Dur','Ini','Pesh','Ruk','Ama','Tal','Oro','Neb','Kith'];
+const EPITHETS = ['the Patient','of the Long Wait','Two-Rocks','the Hopeful','Grass-Eater','the Early','who Waits','Nut-Finder','the Undeterred','the Bored'];
+function forager(gen){
+  /* deterministic per generation, so a returning player meets the same ancestor */
+  const a = NAMES[(gen*7 + 3) % NAMES.length];
+  const b = EPITHETS[(gen*11 + 5) % EPITHETS.length];
+  return a + ' ' + b;
+}
+
+/* ---------- achievements ---------- */
+const ACH = [
+  {id:'start',  n:'The Agricultural Revolution Begins', d:'Open the game. The clock starts and does not stop.', test:()=>true},
+  {id:'w60',    n:'One Whole Minute',      d:'Watch for 60 seconds. That is 0.0000000158% of the game.', test:s=>watched()>=60e3},
+  {id:'w300',   n:'Five Minutes In',       d:'Watch for 5 minutes. Nothing has changed. Nothing will.', test:s=>watched()>=300e3},
+  {id:'w1800',  n:'Concerning Commitment', d:'Watch for 30 minutes of the Neolithic.', test:s=>watched()>=1800e3},
+  {id:'w3600',  n:'An Hour of Your Life',  d:'Watch for one hour. You will not get it back, and neither will the tribe.', test:s=>watched()>=3600e3},
+  {id:'ret',    n:'You Came Back',         d:'Return in a second session. The clock had kept running.', test:s=>s.sessions>=2},
+  {id:'ret5',   n:'Habit',                 d:'Open the game five separate times.', test:s=>s.sessions>=5},
+  {id:'f50',    n:'Subsistence',           d:'Forage 50 times.', test:s=>s.clicks>=50},
+  {id:'f500',   n:'Hunter-Gatherer',       d:'Forage 500 times, to no effect whatsoever.', test:s=>s.clicks>=500},
+  {id:'tuber',  n:'Not A Potato',          d:'Find a tuber that is emphatically not a potato.', test:s=>s.tubers>=1},
+  {id:'day',    n:'A Day of the Neolithic',d:'Let one full game day pass. It is also one real day.', test:()=>elapsedMs()>=86400e3},
+  {id:'year',   n:'A Single Year',         d:'Witness one full year of the agricultural revolution.', test:()=>elapsedMs()>=MS_YEAR, never:true},
+  {id:'gen',    n:'Pass It On',            d:'Survive to the end of one forager\'s life (15 years).', test:()=>elapsedMs()>=GEN_YEARS*MS_YEAR, never:true},
+  {id:'win',    n:'Potato Farmer',         d:'Complete the agricultural revolution and farm a potato.', test:()=>progress()>=1, never:true}
+];
+/* watchedBase is frozen at boot so watched() never double-counts the periodic save. */
+function watched(){ return watchedBase + (Date.now() - sessionStart); }
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const el = {
+  gdate:$('gdate'), gtime:$('gtime'), gseason:$('gseason'),
+  fill:$('fill'), pct:$('pct'), pctsub:$('pctsub'), barL:$('barL'), barR:$('barR'), zoomnote:$('zoomnote'),
+  sRemY:$('sRemY'), sRemS:$('sRemS'), sElapsed:$('sElapsed'), sFinish:$('sFinish'),
+  sDead:$('sDead'), sGens:$('sGens'), sSessions:$('sSessions'), sWatched:$('sWatched'),
+  lName:$('lName'), lAge:$('lAge'), lDies:$('lDies'), lGen:$('lGen'),
+  cdEv:$('cdEv'), cdEvY:$('cdEvY'), cdNum:$('cdNum'),
+  tl:$('tl'), tlmoved:$('tlmoved'), evlist:$('evlist'),
+  log:$('log'), cCal:$('cCal'), cFinds:$('cFinds'), cTuber:$('cTuber'), cSpud:$('cSpud'),
+  ach:$('ach'), achcap:$('achcap'), lockWhen:$('lockWhen'), toast:$('toast')
+};
+
+/* ---------- toast ---------- */
+let toastTimer = null;
+function toast(title, body, ms){
+  el.toast.innerHTML = '<span class="th">' + title + '</span>' + body;
+  el.toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.toast.classList.remove('show'), ms || 7000);
+}
+
+/* ---------- log ---------- */
+function logLine(text, cls){
+  const d = document.createElement('div');
+  d.className = 'l ' + (cls||'');
+  const g = new Date(gameMs());
+  d.innerHTML = '<span class="t">' + pad(g.getUTCHours()) + ':' + pad(g.getUTCMinutes()) + '</span>' + text;
+  el.log.appendChild(d);
+  while(el.log.children.length > 120) el.log.removeChild(el.log.firstChild);
+  el.log.scrollTop = el.log.scrollHeight;
+}
+
+/* ---------- the microscope ---------- */
+let zoom = 1;
+document.querySelectorAll('[data-zoom]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('[data-zoom]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    zoom = Number(b.dataset.zoom);
+    const shown = SPAN_YEARS / zoom;
+    if(zoom === 1){
+      el.barL.textContent = '10,000 BC';
+      el.barR.textContent = 'potato · 2026 AD';
+      el.zoomnote.textContent = 'The bar shows the full 12,026 years. It will not appear to move, because it is not moving.';
+    } else {
+      el.barL.textContent = 'start';
+      el.barR.textContent = spanText(shown*MS_YEAR, 2) + ' in';
+      el.zoomnote.textContent = 'The bar now shows only the first ' + spanText(shown*MS_YEAR, 2) +
+        ' of the game, magnified ' + fmt(zoom) + '×. This is the only way to see progress with the naked eye.';
+    }
+    render();
+  });
+});
+
+/* ---------- foraging ---------- */
+const FINDS = [
+  [26,'A handful of wild grass seeds. Barely food.', 12, 'cal'],
+  [16,'Hazelnuts. Genuinely good. Not a potato.', 40, 'cal'],
+  [13,'Bitter greens. Edible under protest.', 8, 'cal'],
+  [10,'A rock. You keep it anyway.', 0, 'none'],
+  [9, 'Wild figs, mostly wasps.', 25, 'cal'],
+  [7, 'A snail. The tribe cheers, briefly.', 15, 'cal'],
+  [6, 'Roots. Woody, stringy, ancient. Chewed for 40 minutes.', 18, 'cal'],
+  [5, 'Nothing. You walked a long way for nothing.', 0, 'none'],
+  [4, 'A duck egg, still warm. A very good day.', 90, 'cal'],
+  [2.6,'A wild yam. IT IS NOT A POTATO. It is a yam. Different continent, different family, different everything.', 60, 'tuber'],
+  [1.0,'A sunchoke-shaped tuber. Also not a potato. Also gives you wind.', 45, 'tuber'],
+  [0.4,'You dream of a potato. In the dream it is golden and floury and roasted. You wake up in 9,999 BC.', 0, 'dream']
+];
+const TOTAL_W = FINDS.reduce((a,f)=>a+f[0],0);
+function rollFind(){
+  let r = Math.random()*TOTAL_W;
+  for(const f of FINDS){ r -= f[0]; if(r <= 0) return f; }
+  return FINDS[0];
+}
+function forage(){
+  S.clicks++; S.finds++;
+  const f = rollFind();
+  S.calories += f[2];
+  let cls = f[2] >= 40 ? 'good' : '';
+  if(f[3] === 'tuber'){ S.tubers++; cls = 'rare'; }
+  if(f[3] === 'dream'){ cls = 'rare'; }
+  logLine(f[1], cls);
+  burst();
+  if(S.clicks === 20 && !S.seenNoEffect){
+    S.seenNoEffect = true;
+    logLine('Note: foraging has no effect on the 12,026-year timer. Nothing does. Carry on.', 'sys');
+    toast('A clarification', 'Foraging is not a mechanic. It is something to do with your hands while the agricultural revolution happens at its own pace.');
+  }
+  if(S.clicks % 100 === 0){
+    logLine('You have foraged ' + fmt(S.clicks) + ' times. The timer is unmoved.', 'sys');
+  }
+  save(); renderCounts(); checkAch();
+}
+$('btnForage').addEventListener('click', forage);
+
+$('btnFast').addEventListener('click', ()=>{
+  const lines = [
+    'There is no fast-forward. That was the premise.',
+    'Fast-forward would make this a different game — a good one, possibly.',
+    'You cannot fast-forward the agricultural revolution. People tried. It took 12,026 years.',
+    'Speed is set to ×1 and the control has been removed for your protection.'
+  ];
+  toast('Denied', lines[Math.floor(Math.random()*lines.length)]);
+  logLine('You attempt to speed up time. Time declines.', 'sys');
+});
+
+/* ---------- keyboard easter egg ---------- */
+let typed = '';
+window.addEventListener('keydown', e=>{
+  if(e.key.length !== 1) return;
+  typed = (typed + e.key.toUpperCase()).slice(-6);
+  if(typed === 'POTATO'){
+    typed = '';
+    S.potatoes++;
+    save(); renderCounts();
+    logLine('You hallucinate a potato. It is warm, it is real, and it is roughly 12,000 years early. The tribe is worried about you.', 'rare');
+    toast('A potato, briefly', 'It was not there. Hallucinated potatoes do not count toward completion, and the clock did not move.');
+  }
+});
+
+/* ---------- buttons ---------- */
+$('btnCopy').addEventListener('click', ()=>{
+  const p = progress();
+  const txt =
+    'POTATO FARMER — a real-time simulator\n' +
+    'Started: ' + new Date(S.firstLaunch).toDateString() + '\n' +
+    'Game date: ' + gameDateString() + '\n' +
+    'Progress: ' + (p*100).toFixed(12) + '%\n' +
+    'Remaining: ' + spanText(SPAN_MS - elapsedMs(), 3) + '\n' +
+    'Projected completion: ' + finishString() + '\n' +
+    'Potatoes farmed: ' + S.potatoes + ' (all hallucinated)\n' +
+    'Status: not yet a potato farmer';
+  navigator.clipboard && navigator.clipboard.writeText(txt).then(
+    ()=>toast('Copied', 'Your status has been copied. Share it with someone who has ' + spanText(SPAN_MS - elapsedMs(), 1) + ' spare.'),
+    ()=>toast('Clipboard denied', 'Copy it by hand. You have time.')
+  );
+});
+$('btnNotify').addEventListener('click', ()=>{
+  toast('Reminder set', 'We will notify you on ' + finishString() + '. Please keep this browser, this device, this tab and this species available until then.');
+});
+$('btnReset').addEventListener('click', ()=>{
+  const lost = (progress()*100).toFixed(10);
+  if(confirm('Abandon the lineage and restart the agricultural revolution?\n\nYou will lose ' + lost + '% of the game (' + spanText(elapsedMs(),2) + ').\n\nThis cannot be undone, though it can be re-done, for another 12,026 years.')){
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    location.reload();
+  }
+});
+
+/* ---------- static renders ---------- */
+function buildEventList(){
+  const g = gameMs();
+  const nx = nextEvent();
+  el.evlist.innerHTML = '';
+  EV_MS.forEach(([ms, yr, text])=>{
+    const row = document.createElement('div');
+    row.className = 'ev-row' + (ms === nx[0] ? ' next' : '') + (yr === TARGET_YEAR ? ' finale' : '');
+    const wait = ms - g;
+    row.innerHTML =
+      '<div class="y">' + yearLabel(yr) + '</div>' +
+      '<div class="t">' + text + '</div>' +
+      '<div class="w">' + (wait <= 0 ? 'passed' : 'in ' + spanText(wait, 1)) + '</div>';
+    el.evlist.appendChild(row);
+  });
+  /* ticks on the to-scale timeline */
+  el.tl.querySelectorAll('.tick').forEach(t=>t.remove());
+  EV_MS.forEach(([ms, yr])=>{
+    const f = (ms - EPOCH_MS) / SPAN_MS;
+    if(f < 0 || f > 1) return;
+    const t = document.createElement('div');
+    t.className = 'tick' + ([-8000,-3200,1532,1589].includes(yr) ? ' major' : '');
+    t.style.left = (f*100).toFixed(4) + '%';
+    el.tl.appendChild(t);
+  });
+}
+function buildPlots(){
+  const p = $('plots');
+  for(let i=0;i<36;i++){ const d=document.createElement('div'); d.className='plot'; p.appendChild(d); }
+}
+function buildAch(){
+  el.ach.innerHTML = '';
+  let got = 0;
+  ACH.forEach(a=>{
+    const have = !!S.ach[a.id];
+    if(have) got++;
+    const d = document.createElement('div');
+    d.className = 'a' + (have?' got':'') + (a.never && !have ? ' never' : '');
+    d.innerHTML = '<div class="mk">' + (have?'◆':'◇') + '</div><div><div class="nm">' + a.n + '</div><div class="ds">' + a.d + '</div></div>';
+    el.ach.appendChild(d);
+  });
+  el.achcap.textContent = got + ' of ' + ACH.length + ' earned';
+}
+function checkAch(){
+  let changed = false;
+  ACH.forEach(a=>{
+    if(!S.ach[a.id]){
+      let ok = false;
+      try{ ok = a.test(S); }catch(e){ ok = false; }
+      if(ok){
+        S.ach[a.id] = Date.now(); changed = true;
+        if(a.id !== 'start'){
+          toast('Achievement: ' + a.n, a.d);
+          logLine('Achievement unlocked — ' + a.n, 'sys');
+        }
+      }
+    }
+  });
+  if(changed){ save(); buildAch(); }
+}
+
+/* ---------- strings ---------- */
+function gameDateString(){
+  const g = new Date(gameMs());
+  return ORD(g.getUTCDate()) + ' of ' + MONTHS[g.getUTCMonth()] + ', ' + yearLabel(g.getUTCFullYear());
+}
+function finishString(){
+  const d = new Date(S.firstLaunch + SPAN_MS);
+  return ORD(d.getUTCDate()) + ' ' + MONTHS[d.getUTCMonth()] + ' ' + fmt(d.getUTCFullYear());
+}
+const SEASONS = ['Deep Winter','Late Winter','Thaw','Spring','Late Spring','Early Summer','High Summer','Late Summer','Harvest (of nothing)','Autumn','Late Autumn','Winter'];
+
+/* ---------- main render ---------- */
+function renderCounts(){
+  el.cCal.textContent = fmt(S.calories);
+  el.cFinds.textContent = fmt(S.finds);
+  el.cTuber.textContent = fmt(S.tubers);
+  el.cSpud.textContent = S.potatoes ? fmt(S.potatoes) + ' (hallucinated)' : '0';
+}
+
+let lastEventKey = null;
+function render(){
+  const e = elapsedMs();
+  const p = progress();
+  const g = new Date(gameMs());
+
+  el.gdate.innerHTML = ORD(g.getUTCDate()) + ' of ' + MONTHS[g.getUTCMonth()] +
+    ', <span class="yr">' + yearLabel(g.getUTCFullYear()) + '</span>';
+  el.gtime.textContent = pad(g.getUTCHours()) + ':' + pad(g.getUTCMinutes()) + ':' + pad(g.getUTCSeconds());
+  el.gseason.textContent = SEASONS[g.getUTCMonth()] + ' · day ' + dayOfYear(g) + ' of the year';
+
+  /* progress bar, with optional magnification */
+  const shown = Math.min(1, p * zoom);
+  el.fill.style.width = (shown*100).toFixed(6) + '%';
+  el.pct.innerHTML = (p*100).toFixed(12).replace(/(\.\d{6})(\d+)/, '$1<span style="color:var(--faint)">$2</span>') + '&thinsp;%';
+  el.pctsub.textContent = zoom === 1
+    ? 'of the way to being allowed to grow a potato'
+    : (shown >= 1
+        ? 'you have filled the magnified bar · that was ' + spanText(SPAN_MS/zoom, 2) + ' of the game'
+        : 'true progress · the bar above is magnified ' + fmt(zoom) + '×');
+
+  /* situation */
+  const rem = Math.max(0, SPAN_MS - e);
+  el.sRemY.textContent = spanText(rem, 3);
+  el.sRemS.textContent = fmt(rem/1000) + ' s';
+  el.sElapsed.textContent = e >= 86400e3 ? spanText(e, 3) : clockText(e);
+  el.sFinish.textContent = finishString();
+
+  /* generously assuming the player has another 50 years in them */
+  el.sDead.textContent = 'approx. ' + fmt(SPAN_YEARS - 50) + ' years';
+  el.sGens.textContent = fmt(Math.ceil((SPAN_MS - e)/(GEN_YEARS*MS_YEAR))) + ' foragers';
+  el.sSessions.textContent = fmt(S.sessions);
+  el.sWatched.textContent = clockText(watched());
+
+  /* lineage */
+  const gen = Math.floor(e / (GEN_YEARS*MS_YEAR));
+  const intoGen = e - gen*GEN_YEARS*MS_YEAR;
+  el.lName.textContent = forager(gen);
+  el.lAge.textContent = spanText(LIFE_START*MS_YEAR + intoGen, 3);
+  el.lDies.textContent = spanText(GEN_YEARS*MS_YEAR - intoGen, 2);
+  el.lGen.textContent = fmt(gen+1) + ' of ' + fmt(Math.ceil(SPAN_YEARS/GEN_YEARS));
+
+  /* next event */
+  const nx = nextEvent();
+  el.cdEv.textContent = nx[2];
+  el.cdEvY.textContent = yearLabel(nx[1]) + ' · the next thing to happen';
+  const wait = nx[0] - gameMs();
+  el.cdNum.textContent = spanText(wait, 3) + '  (' + fmt(wait/1000) + ' s)';
+  if(lastEventKey !== nx[0]){ lastEventKey = nx[0]; buildEventList(); }
+
+  /* timeline vanity metric: how far the marker has crept, in pixels */
+  const px = (el.tl.clientWidth || 900) * p;
+  el.tlmoved.textContent = px.toFixed(9);
+
+  el.lockWhen.textContent = 'unlocks in ' + spanText(rem, 2);
+
+  checkAch();
+}
+function dayOfYear(d){
+  const start = ymd(d.getUTCFullYear(), 0, 1);
+  return Math.floor((d.getTime() - start)/86400000) + 1;
+}
+
+/* =========================================================================
+   SCENE — the site of the future potato field, lit by the actual time of day
+   ========================================================================= */
+const cv = $('scene'), cx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  cx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', ()=>{ resize(); });
+
+const STARS = Array.from({length:110}, ()=>({x:Math.random(), y:Math.random()*0.62, r:Math.random()*1.1+0.25, tw:Math.random()*Math.PI*2}));
+const CLOUDS = Array.from({length:5}, (_,i)=>({x:Math.random(), y:0.10+Math.random()*0.22, s:0.5+Math.random()*0.8, v:0.0015+Math.random()*0.0022}));
+const TREES = [[0.06,1],[0.13,.8],[0.83,1.1],[0.92,.85],[0.74,.65]];
+let parts = [];
+function burst(){
+  for(let i=0;i<14;i++){
+    parts.push({x:0.30+Math.random()*0.06, y:0.80, vx:(Math.random()-0.5)*0.006, vy:-0.004-Math.random()*0.006, l:1});
+  }
+}
+cv.addEventListener('click', forage);
+
+function lerp(a,b,t){ return a+(b-a)*t; }
+/* blend() keeps the [r,g,b] form so results can be blended again; mix() is the
+   same thing rendered to a CSS colour. Passing a mix() string back into mix()
+   yields rgb(NaN,NaN,NaN), which canvas rejects outright. */
+function blend(c1,c2,t){
+  return [lerp(c1[0],c2[0],t), lerp(c1[1],c2[1],t), lerp(c1[2],c2[2],t)];
+}
+function mix(c1,c2,t){
+  const c = blend(c1,c2,t);
+  return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')';
+}
+
+function drawScene(ts){
+  const g = new Date(gameMs());
+  const h = g.getUTCHours() + g.getUTCMinutes()/60 + g.getUTCSeconds()/3600;
+  /* seasonal tilt: longer days in game-summer */
+  const doy = dayOfYear(g);
+  const tilt = Math.sin((doy-80)/365.2425*Math.PI*2) * 1.6;
+  const sunrise = 6 - tilt, sunset = 18 + tilt;
+  const dayFrac = (h - sunrise) / (sunset - sunrise);
+  const alt = Math.sin(Math.max(0, Math.min(1, dayFrac)) * Math.PI) * (dayFrac>=0 && dayFrac<=1 ? 1 : 0);
+  const night = dayFrac < 0 || dayFrac > 1;
+  const dusk = !night && alt < 0.22;
+  const light = night ? 0 : Math.max(0, alt);
+
+  /* sky */
+  const top = night ? [8,10,17] : dusk ? [40,32,44] : [ 62,104,158];
+  const bot = night ? [16,18,26] : dusk ? [186,102,58] : [162,196,224];
+  const gr = cx.createLinearGradient(0,0,0,H*0.82);
+  gr.addColorStop(0, mix([8,10,17], top, Math.min(1,light*3+ (night?0:0.35))));
+  gr.addColorStop(1, mix([22,20,28], bot, Math.min(1,light*2.2 + (night?0:0.3))));
+  cx.fillStyle = gr; cx.fillRect(0,0,W,H);
+
+  /* stars */
+  if(light < 0.45){
+    const a = 1 - light/0.45;
+    STARS.forEach(s=>{
+      const tw = 0.55 + 0.45*Math.sin(ts/900 + s.tw);
+      cx.fillStyle = 'rgba(226,230,240,' + (a*tw*0.85).toFixed(3) + ')';
+      cx.beginPath(); cx.arc(s.x*W, s.y*H, s.r, 0, 7); cx.fill();
+    });
+  }
+
+  /* sun / moon on an arc */
+  const arcT = night ? ((h < sunrise ? h + 24 : h) - sunset) / (24 - (sunset - sunrise)) : dayFrac;
+  const bx = W * (0.08 + 0.84*Math.max(0,Math.min(1,arcT)));
+  const by = H*0.70 - Math.sin(Math.max(0,Math.min(1,arcT))*Math.PI) * H*0.56;
+  if(!night){
+    cx.fillStyle = 'rgba(255,226,160,.20)';
+    cx.beginPath(); cx.arc(bx,by,26,0,7); cx.fill();
+    cx.fillStyle = '#ffdf9a';
+    cx.beginPath(); cx.arc(bx,by,11,0,7); cx.fill();
+  } else {
+    cx.fillStyle = 'rgba(210,220,240,.12)';
+    cx.beginPath(); cx.arc(bx,by,22,0,7); cx.fill();
+    cx.fillStyle = '#cfd6e6';
+    cx.beginPath(); cx.arc(bx,by,9,0,7); cx.fill();
+    cx.fillStyle = mix([8,10,17],[16,18,26],0.5);
+    cx.beginPath(); cx.arc(bx-3.4,by-2.6,8,0,7); cx.fill();
+  }
+
+  /* clouds */
+  CLOUDS.forEach(c=>{
+    c.x += c.v*0.016; if(c.x > 1.25) c.x = -0.3;
+    const cxp = c.x*W, cyp = c.y*H, s = c.s;
+    cx.fillStyle = night ? 'rgba(120,128,150,.16)' : 'rgba(240,238,232,' + (0.14+0.2*light).toFixed(3) + ')';
+    [[0,0,22],[18,4,17],[-19,4,15],[7,-8,15]].forEach(([dx,dy,r])=>{
+      cx.beginPath(); cx.arc(cxp+dx*s, cyp+dy*s, r*s, 0, 7); cx.fill();
+    });
+  });
+
+  /* hills */
+  const hillFar = mix([26,30,38],[86,104,80], light);
+  const hillNear = mix([18,22,28],[64,84,56], light);
+  cx.fillStyle = hillFar;
+  cx.beginPath(); cx.moveTo(0,H*0.74);
+  for(let x=0;x<=W;x+=12) cx.lineTo(x, H*0.74 - Math.sin(x/W*4.1+1.2)*16 - 10);
+  cx.lineTo(W,H); cx.lineTo(0,H); cx.fill();
+
+  /* ground — seasonal colour */
+  const seasonT = 0.5 + 0.5*Math.sin((doy-105)/365.2425*Math.PI*2);
+  const dry = [96,84,52], lush = [58,92,48];
+  const groundLit = blend(dry, lush, seasonT);
+  const grd = cx.createLinearGradient(0,H*0.78,0,H);
+  grd.addColorStop(0, mix([16,18,22], groundLit, 0.25+light*0.75));
+  grd.addColorStop(1, mix([13,14,17], [78,60,40], 0.3+light*0.7));   // bare soil in the foreground
+  cx.fillStyle = grd;
+  cx.beginPath(); cx.moveTo(0,H*0.80);
+  for(let x=0;x<=W;x+=10) cx.lineTo(x, H*0.80 - Math.sin(x/W*6.6+0.4)*7);
+  cx.lineTo(W,H); cx.lineTo(0,H); cx.fill();
+
+  /* trees */
+  TREES.forEach(([fx,s])=>{
+    const x = fx*W, y = H*0.815, sc = s*(H/230);
+    cx.fillStyle = mix([14,16,20],[62,46,32], 0.2+light*0.8);
+    cx.fillRect(x-2*sc, y-24*sc, 4*sc, 24*sc);
+    cx.fillStyle = mix([16,20,24],[48,80,44], 0.18+light*0.82);
+    cx.beginPath(); cx.arc(x, y-30*sc, 16*sc, 0, 7); cx.fill();
+    cx.beginPath(); cx.arc(x-11*sc, y-24*sc, 11*sc, 0, 7); cx.fill();
+    cx.beginPath(); cx.arc(x+11*sc, y-25*sc, 12*sc, 0, 7); cx.fill();
+  });
+
+  /* the plot of land that will one day be a potato field */
+  const fx0 = W*0.42, fx1 = W*0.66, fy = H*0.86;
+  cx.strokeStyle = 'rgba(224,144,63,' + (0.52 + 0.24*Math.sin(ts/1400)).toFixed(3) + ')';
+  cx.setLineDash([6,6]); cx.lineWidth = 1.4;
+  cx.strokeRect(fx0, fy-26, fx1-fx0, 30);
+  cx.setLineDash([]);
+  /* sign post */
+  cx.fillStyle = mix([20,20,24],[70,56,38],0.25+light*0.75);
+  cx.fillRect(fx0+ (fx1-fx0)/2 - 1.5, fy-46, 3, 22);
+  cx.fillStyle = 'rgba(21,23,28,.92)';
+  const sw = Math.min(196, (fx1-fx0)*1.5);
+  cx.fillRect(fx0 + (fx1-fx0)/2 - sw/2, fy-62, sw, 18);
+  cx.strokeStyle = '#3a4150'; cx.lineWidth = 1;
+  cx.strokeRect(fx0 + (fx1-fx0)/2 - sw/2, fy-62, sw, 18);
+  cx.fillStyle = '#e0903f';
+  cx.font = '600 9px IBM Plex Mono, monospace';
+  cx.textAlign = 'center';
+  cx.fillText('FUTURE POTATO FIELD', fx0 + (fx1-fx0)/2, fy-50);
+
+  /* campfire at night */
+  if(light < 0.35){
+    const fxp = W*0.20, fyp = H*0.90, fl = 0.7 + 0.3*Math.sin(ts/90) + 0.15*Math.sin(ts/37);
+    cx.fillStyle = 'rgba(224,144,63,' + (0.10*fl).toFixed(3) + ')';
+    cx.beginPath(); cx.arc(fxp, fyp, 46*fl, 0, 7); cx.fill();
+    cx.fillStyle = '#e0903f';
+    cx.beginPath(); cx.ellipse(fxp, fyp-4, 5*fl, 9*fl, 0, 0, 7); cx.fill();
+    cx.fillStyle = '#f6d78a';
+    cx.beginPath(); cx.ellipse(fxp, fyp-3, 2.4*fl, 5*fl, 0, 0, 7); cx.fill();
+  }
+
+  /* the forager, wandering, forever */
+  const walk = (ts/5200) % 1;
+  const px = W*(0.24 + 0.30*(0.5 - 0.5*Math.cos(walk*Math.PI*2)));
+  const py = H*0.885;
+  const bob = Math.sin(ts/240)*1.6;
+  const dir = Math.sin(walk*Math.PI*2) >= 0 ? 1 : -1;
+  cx.fillStyle = mix([74,70,74],[196,172,138], 0.25+light*0.75);
+  cx.fillRect(px-2.5, py-16+bob, 5, 11);                    // body
+  cx.beginPath(); cx.arc(px, py-19+bob, 3.4, 0, 7); cx.fill(); // head
+  cx.fillRect(px-2.5, py-5.5+bob*0.4, 2, 6);                 // legs
+  cx.fillRect(px+0.6, py-5.5-bob*0.4, 2, 6);
+  cx.fillRect(px + dir*2.5, py-14+bob, 4*dir, 1.8);          // arm
+
+  /* forage particles */
+  parts = parts.filter(p=>p.l > 0);
+  parts.forEach(p=>{
+    p.x += p.vx; p.y += p.vy; p.vy += 0.00022; p.l -= 0.016;
+    cx.fillStyle = 'rgba(224,144,63,' + Math.max(0,p.l).toFixed(2) + ')';
+    cx.fillRect(p.x*W, p.y*H, 2.2, 2.2);
+  });
+
+  /* horizon haze */
+  cx.fillStyle = 'rgba(15,17,21,.35)';
+  cx.fillRect(0, H-2, W, 2);
+}
+
+/* =========================================================================
+   LOOP
+   ========================================================================= */
+let lastRender = 0;
+function frame(ts){
+  if(ts - lastRender > 200){ lastRender = ts; render(); }
+  drawScene(ts);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- boot ---------- */
+resize();
+buildPlots();
+buildAch();
+buildEventList();
+renderCounts();
+render();
+requestAnimationFrame(frame);
+
+if(!returning){
+  logLine('The agricultural revolution begins. You are a forager. There are no potatoes on this continent and nobody has invented farming.', 'sys');
+  logLine('Objective: become a potato farmer. Estimated time to objective: ' + spanText(SPAN_MS,2) + '.', 'sys');
+  toast('The clock has started', 'It is now the ' + gameDateString() + '. It will be 2026 AD in ' + spanText(SPAN_MS,2) +
+    '. The clock runs whether this tab is open or not — that is what "real time" means.', 11000);
+} else {
+  logLine('You return. ' + spanText(awayMs,2) + ' passed while you were gone, and it counted.', 'sys');
+  const gained = (awayMs/SPAN_MS*100);
+  toast('Welcome back',
+    'You were away for ' + spanText(awayMs,2) + '. The clock kept running, because it is real. ' +
+    'Progress made in your absence: ' + gained.toFixed(10) + '%. Progress made by your presence: also that.', 9500);
+}
+checkAch();
+
+/* ---------- persistence ---------- */
+setInterval(()=>{
+  S.watchedMs = watched();
+  save();
+}, 5000);
+window.addEventListener('beforeunload', ()=>{
+  S.watchedMs = watched();
+  save();
+});
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ S.watchedMs = watched(); save(); }
+});
+</script>
+</body>
+</html>

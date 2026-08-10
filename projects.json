@@ -1,6 +1,15 @@
 {
   "projects": [
     {
+      "slug": "potato-farmer",
+      "title": "Potato Farmer",
+      "description": "A potato farming simulator played in real time \u2014 which begins at the agricultural revolution, in 10,000 BC. The aim is to be a potato farmer farming potatoes; the condition is that you must first get through the intervening 12,026 years at one second per second. A live Neolithic clock, a progress bar that needs a 1,000,000\u00d7 microscope to appear to move, ticking countdowns to the invention of pottery and the arrival of the potato in Europe, a lineage of foragers who each die after fifteen years, a day/night hillside lit by your actual local time, and a fully implemented potato field that unlocks in the year 14,052. The clock runs whether the tab is open or not. Nobody has won.",
+      "tags": ["game", "idle", "real-time", "simulation", "potato", "neolithic", "deep-time", "satire", "canvas", "interactive", "browser"],
+      "date": "2026-08-10",
+      "path": "projects/potato-farmer/",
+      "pages": []
+    },
+    {
       "slug": "quotle",
       "title": "Quotle",
       "description": "A Wordle for famous quotes — over 1000 of them, in a separate database. The whole quote sits on one line of letter boxes; each guess is graded and stacks below the last, so you read down the columns to see what you've nailed. Colours work per word — a yellow only tells you a letter is in that word, never across the whole quote — and each wrong guess unlocks another clue. A universal Quote of the Day, then unlock a random one. Five tries, then copy an emoji scorecard (one square per letter) to share.",
