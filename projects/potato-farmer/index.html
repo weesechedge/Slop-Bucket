@@ -148,6 +148,18 @@
   .plot{aspect-ratio:1;background:#2a2118;border:1px solid #3a2f22;border-radius:5px}
   .plot::after{content:'';display:block;width:6px;height:6px;margin:38% auto;border-radius:50%;background:var(--spud)}
 
+  /* ---------- progress keys ---------- */
+  .keyrow{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px}
+  .keyout,.keyin{flex:1 1 240px;min-width:0;background:#0c0e12;border:1px solid var(--line);border-radius:8px;
+    padding:9px 11px;font-family:var(--mono);font-size:12px;letter-spacing:.05em;word-break:break-all}
+  .keyout{color:var(--accent2);user-select:all}
+  .keyout.empty{color:var(--dim);letter-spacing:0}
+  .keyin{color:var(--ink)}
+  .keyin::placeholder{color:var(--dim)}
+  .keyin:focus{outline:none;border-color:var(--accent)}
+  .keymsg{margin-top:12px;font-size:11.5px;line-height:1.6;color:var(--faint)}
+  .keymsg.ok{color:var(--green)} .keymsg.err{color:var(--red)}
+
   /* ---------- achievements ---------- */
   .ach{display:grid;gap:8px}
   @media(min-width:620px){ .ach{grid-template-columns:1fr 1fr} }
@@ -318,6 +330,27 @@
     <div class="ach" id="ach"></div>
   </div>
 
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Moving to Another Device</h2>
+    <p class="cap">the lineage is portable · nothing is stored on any server</p>
+    <div class="note" style="margin-top:0">
+      Your progress lives in this browser, on this device, and nowhere else — there is no account and no server
+      to hold it. To continue somewhere else, generate a key here and enter it there. The key <b>is</b> your save,
+      written down: the receiving device stops keeping its own progress and continues this lineage from then on,
+      permanently. Every device starts its own agricultural revolution until you tell it otherwise.
+    </div>
+    <div class="keyrow">
+      <button class="btn" id="btnKeyGen">Generate key</button>
+      <code class="keyout empty" id="keyout">no key generated yet</code>
+      <button class="btn" id="btnKeyCopy">Copy</button>
+    </div>
+    <div class="keyrow">
+      <input class="keyin" id="keyin" placeholder="SPUD-XXXXX-XXXXX-XXXXX-…" spellcheck="false" autocomplete="off">
+      <button class="btn" id="btnKeyUse">Adopt this lineage</button>
+    </div>
+    <div class="keymsg" id="keymsg">A key is only accepted if this game generated it. Invented keys are rejected rather than granted.</div>
+  </div>
+
   <div class="panel">
     <h2>Rules, Stated Plainly</h2>
     <p class="cap">so there is no confusion later</p>
@@ -328,7 +361,8 @@
       12,026 years. The tribe survives regardless of your input. You are not needed; you are only required to
       still be here at the end.<br><br>
       <b>There is no fast-forward, no prestige, no idle multiplier, and no ending you can reach.</b> The save is
-      stored in this browser, on this device. If you clear it, you start the agricultural revolution again.<br><br>
+      stored in this browser, on this device. If you clear it, you start the agricultural revolution again — so
+      if you intend to switch devices, or ever reinstall anything, generate a key above first.<br><br>
       <b>You win by being a potato farmer.</b> Nobody has won.
     </div>
     <div class="footrow">
@@ -384,7 +418,8 @@ const DEFAULT_SAVE = {
   finds: 0, calories: 0, tubers: 0, potatoes: 0,
   clicks: 0,
   ach: {},
-  seenNoEffect: false
+  seenNoEffect: false,
+  justImported: false   // set by an adopted key, cleared on the next boot
 };
 let S = load();
 
@@ -395,7 +430,13 @@ function load(){
   if(!s.ach || typeof s.ach !== 'object') s.ach = {};
   return s;
 }
+/* Adopting a key or abandoning a lineage replaces the stored save and reloads.
+   Until that reload lands, this page still holds the old state in memory, and
+   both the autosave timer and beforeunload would write it straight back over
+   the replacement. Freezing the save is what makes those two actions stick. */
+let saveFrozen = false;
 function save(){
+  if(saveFrozen) return;
   S.lastSeen = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
 }
@@ -411,6 +452,132 @@ save();
 
 const sessionStart = bootNow;
 const watchedBase  = S.watchedMs;
+
+/* =========================================================================
+   PROGRESS KEYS — carrying a lineage to another device
+
+   The key IS the save, written down: this algorithm both writes and reads it,
+   and nothing is stored on any server. A 24-bit salted checksum travels with
+   the payload, so an invented or mistyped key is rejected outright rather
+   than resolving to some arbitrary stranger's progress.
+
+   The order of fields below, and the order of the ACH array, together define
+   the wire format — bump K_VER before changing either.
+   ========================================================================= */
+const K_ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';  // Crockford base32: no I, L, O, U
+const K_VER = 1;
+const K_MIN_LAUNCH = 1.7e12;   // Nov 2023 · nothing legitimate started before the game existed
+
+function vpush(out, n){
+  n = Math.max(0, Math.floor(n));
+  do { const b = n % 128; n = Math.floor(n/128); out.push(b | (n > 0 ? 128 : 0)); } while(n > 0);
+}
+function vread(st){
+  let n = 0, mul = 1, b;
+  do {
+    if(st.i >= st.a.length) throw new Error('truncated');
+    b = st.a[st.i++];
+    n += (b & 127) * mul;
+    mul *= 128;
+    if(mul > 1e18) throw new Error('overlong');
+  } while(b & 128);
+  return n;
+}
+/* FNV-1a, salted, folded to three bytes. */
+function ksum(bytes){
+  let h = 0x811c9dc5;
+  for(let i=0;i<bytes.length;i++){ h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+  h = Math.imul(h ^ 0x53505544, 0x01000193) >>> 0;
+  return [(h >>> 16) & 255, (h >>> 8) & 255, h & 255];
+}
+function b32enc(bytes){
+  let out = '', bits = 0, val = 0;
+  for(let i=0;i<bytes.length;i++){
+    val = (val << 8) | bytes[i]; bits += 8;
+    while(bits >= 5){ out += K_ALPHA[(val >>> (bits-5)) & 31]; bits -= 5; }
+  }
+  if(bits > 0) out += K_ALPHA[(val << (5-bits)) & 31];
+  return out;
+}
+function b32dec(str){
+  const out = []; let bits = 0, val = 0;
+  for(let i=0;i<str.length;i++){
+    const idx = K_ALPHA.indexOf(str[i]);
+    if(idx < 0) return null;
+    val = (val << 5) | idx; bits += 5;
+    if(bits >= 8){ out.push((val >>> (bits-8)) & 255); bits -= 8; }
+  }
+  return out;
+}
+
+function exportKey(){
+  S.watchedMs = watched();
+  let mask = 0;
+  ACH.forEach((a,i)=>{ if(S.ach[a.id]) mask += Math.pow(2,i); });
+  const p = [K_VER];
+  vpush(p, S.firstLaunch);
+  vpush(p, Math.round(S.watchedMs/1000));
+  vpush(p, S.sessions);
+  vpush(p, S.finds);
+  vpush(p, S.calories);
+  vpush(p, S.tubers);
+  vpush(p, S.potatoes);
+  vpush(p, S.clicks);
+  vpush(p, mask);
+  p.push(S.seenNoEffect ? 1 : 0);
+  const raw = b32enc(p.concat(ksum(p)));
+  return 'SPUD-' + (raw.match(/.{1,5}/g) || []).join('-');
+}
+
+/* Returns a complete save object, or null if the key is not one of ours. */
+function parseKey(str){
+  if(typeof str !== 'string') return null;
+  let s = str.trim().toUpperCase().replace(/^SPUD/, '');
+  s = s.replace(/[-\s]/g, '');
+  s = s.replace(/O/g, '0').replace(/[IL]/g, '1');   // the slips people actually make
+  if(!s.length) return null;
+  for(let i=0;i<s.length;i++) if(K_ALPHA.indexOf(s[i]) < 0) return null;
+
+  const bytes = b32dec(s);
+  if(!bytes || bytes.length < 6) return null;
+  /* The final character carries padding bits the decoder discards, so editing it
+     can leave the bytes — and the checksum — untouched. Requiring the input to be
+     the canonical encoding of what it decoded to closes that hole. */
+  if(b32enc(bytes) !== s) return null;
+  const payload = bytes.slice(0, bytes.length-3);
+  const sum = bytes.slice(bytes.length-3);
+  const want = ksum(payload);
+  if(sum[0] !== want[0] || sum[1] !== want[1] || sum[2] !== want[2]) return null;
+  if(payload[0] !== K_VER) return null;
+
+  const st = { a: payload, i: 1 };
+  let firstLaunch, watchedS, sessions, finds, calories, tubers, potatoes, clicks, mask, flags;
+  try {
+    firstLaunch = vread(st);
+    watchedS    = vread(st);
+    sessions    = vread(st);
+    finds       = vread(st);
+    calories    = vread(st);
+    tubers      = vread(st);
+    potatoes    = vread(st);
+    clicks      = vread(st);
+    mask        = vread(st);
+    flags       = st.i < payload.length ? payload[st.i++] : 0;
+  } catch(e){ return null; }
+  if(st.i !== payload.length) return null;          // trailing junk
+  if(!(firstLaunch >= K_MIN_LAUNCH)) return null;   // also rejects a forged deep-time start
+
+  const now = Date.now();
+  const fl = Math.min(firstLaunch, now);            // tolerate a device clock set ahead
+  const ach = {};
+  ACH.forEach((a,i)=>{ if(Math.floor(mask/Math.pow(2,i)) % 2 === 1) ach[a.id] = fl; });
+
+  return {
+    firstLaunch: fl, lastSeen: now, sessions: sessions, watchedMs: watchedS*1000,
+    finds: finds, calories: calories, tubers: tubers, potatoes: potatoes, clicks: clicks,
+    ach: ach, seenNoEffect: !!(flags & 1), justImported: true
+  };
+}
 
 /* ---------- time helpers ---------- */
 /* Game time-of-day is aligned to the player's local time-of-day at first launch,
@@ -684,9 +851,69 @@ $('btnCopy').addEventListener('click', ()=>{
 $('btnNotify').addEventListener('click', ()=>{
   toast('Reminder set', 'We will notify you on ' + finishString() + '. Please keep this browser, this device, this tab and this species available until then.');
 });
+/* ---------- progress keys ---------- */
+function keyMsg(text, cls){
+  const m = $('keymsg');
+  m.className = 'keymsg' + (cls ? ' ' + cls : '');
+  m.textContent = text;
+}
+function startedText(ms){
+  return new Date(ms).toDateString() + ' (' + spanText(Math.max(0, Date.now()-ms), 2) + ' ago)';
+}
+$('btnKeyGen').addEventListener('click', ()=>{
+  const k = exportKey();
+  save();
+  const out = $('keyout');
+  out.textContent = k;
+  out.classList.remove('empty');
+  const worth = elapsedMs() < 60000 ? 'nothing yet, which is the honest valuation' : spanText(elapsedMs(), 2) + ' of waiting';
+  keyMsg('This key encodes your start time, your counters and your achievements — nothing else, and nothing about you. '
+    + 'Anyone holding it can continue this lineage, so it is worth roughly ' + worth + ' to the right person.', 'ok');
+});
+$('btnKeyCopy').addEventListener('click', ()=>{
+  const out = $('keyout');
+  if(out.classList.contains('empty')){ keyMsg('Generate a key first.', 'err'); return; }
+  navigator.clipboard && navigator.clipboard.writeText(out.textContent).then(
+    ()=>keyMsg('Key copied. Paste it into this same box on the other device.', 'ok'),
+    ()=>keyMsg('The clipboard refused. Select the key and copy it by hand — you have time.', 'err')
+  );
+});
+$('btnKeyUse').addEventListener('click', ()=>{
+  const raw = $('keyin').value;
+  if(!raw.trim()){ keyMsg('Paste a key into the box first.', 'err'); return; }
+  const inc = parseKey(raw);
+  if(!inc){
+    keyMsg('That is not a key this game produced. Nothing has changed, and your own progress is untouched.', 'err');
+    logLine('A key is offered and refused. It was not one of ours.', 'sys');
+    return;
+  }
+  const mine   = progress()*100;
+  const theirs = Math.min(1, Math.max(0, Date.now()-inc.firstLaunch)/SPAN_MS)*100;
+  const lose   = theirs < mine ? '\n\nWARNING: the key holds LESS progress than this device does.' : '';
+  const ok = confirm(
+    'Adopt this lineage?\n\n' +
+    'This device began ' + startedText(S.firstLaunch) + '\n  at ' + mine.toFixed(10) + '%\n\n' +
+    'The key began ' + startedText(inc.firstLaunch) + '\n  at ' + theirs.toFixed(10) + '%' + lose + '\n\n' +
+    'This device will continue the key\'s lineage from now on. Its own progress is discarded and cannot be recovered ' +
+    'unless you generated a key for it too.'
+  );
+  if(!ok){ keyMsg('Left alone. This device keeps its own agricultural revolution.', null); return; }
+  try {
+    saveFrozen = true;
+    localStorage.setItem(KEY, JSON.stringify(Object.assign({}, DEFAULT_SAVE, inc)));
+  } catch(e){
+    saveFrozen = false;
+    keyMsg('This browser refused to save. Check that storage is not blocked, then try again.', 'err');
+    return;
+  }
+  keyMsg('Lineage adopted. Reloading into it…', 'ok');
+  setTimeout(()=>location.reload(), 500);
+});
+
 $('btnReset').addEventListener('click', ()=>{
   const lost = (progress()*100).toFixed(10);
   if(confirm('Abandon the lineage and restart the agricultural revolution?\n\nYou will lose ' + lost + '% of the game (' + spanText(elapsedMs(),2) + ').\n\nThis cannot be undone, though it can be re-done, for another 12,026 years.')){
+    saveFrozen = true;
     try{ localStorage.removeItem(KEY); }catch(e){}
     location.reload();
   }
@@ -1036,7 +1263,15 @@ renderCounts();
 render();
 requestAnimationFrame(frame);
 
-if(!returning){
+if(S.justImported){
+  S.justImported = false;
+  save();
+  logLine('This device adopts a lineage that began ' + new Date(S.firstLaunch).toDateString() +
+    '. Its own progress has been discarded. The clock does not restart; it never does.', 'sys');
+  toast('Lineage adopted',
+    'This device now continues the imported lineage, and will keep continuing it. It began ' +
+    spanText(elapsedMs(), 2) + ' ago and is ' + (progress()*100).toFixed(10) + '% of the way to a potato.', 10000);
+} else if(!returning){
   logLine('The agricultural revolution begins. You are a forager. There are no potatoes on this continent and nobody has invented farming.', 'sys');
   logLine('Objective: become a potato farmer. Estimated time to objective: ' + spanText(SPAN_MS,2) + '.', 'sys');
   toast('The clock has started', 'It is now the ' + gameDateString() + '. It will be 2026 AD in ' + spanText(SPAN_MS,2) +
