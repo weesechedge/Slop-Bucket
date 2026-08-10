@@ -33,8 +33,7 @@
   .promptbar:hover{border-color:#3c4350}
   .pb-label{color:var(--accent);font-weight:600;letter-spacing:.05em;white-space:nowrap}
   .pb-text{color:var(--muted);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pb-text::before{content:'\201C'} .pb-text::after{content:'\201D'}
-  .promptbar.open .pb-text{white-space:normal;overflow:visible;text-overflow:clip}
+  .promptbar.open .pb-text{white-space:pre-wrap;overflow:visible;text-overflow:clip}
   .pb-more{color:var(--faint);white-space:nowrap;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase}
   .promptbar:hover .pb-more{color:var(--accent2)}
 
@@ -186,7 +185,9 @@
 
   <div class="promptbar" id="promptbar" title="The spoken transcript this game was built from, word for word.">
     <span class="pb-label">From the prompt:</span>
-    <span class="pb-text">It's played in real time, but it starts at the industrial... the agricultural revolution. So while the aim of the game is to be a potato farmer farming potatoes, you've got to first go the x tens of thousands of years in real time until you get to be the point of being the potato farmer. Well, that's basically the game. You just explain the beginning again? I will, but I have... I've got a meeting. Okay. But it's a potato farmer game. Yep. The the whole point of the game is that you're a potato farmer. You farm potatoes. Yeah. Yeah. It's just a simulator for potato farming. And that's for slop and churn fest. Yes. But it's played out in real time and the game starts at the start of the agricultural revolution. Right. So, like, it's in real time. Alright. So it's like -- You stop playing potato farm. It starts, you know, the start of the agricultural revolution, and you gotta get through that entire time span -- Okay. -- to become a potato farmer. So it's gonna be take, like, thousands of generations to finish that game. Right. But until you're a potato farmer, you haven't finished the game. Okay. That's the whole game. Okay.</span>
+    <span class="pb-text">Make the following game based on this spoken transcript below, it’s a new entry on the slop bucket:
+
+“It's played in real time, but it starts at the industrial... the agricultural revolution. So while the aim of the game is to be a potato farmer farming potatoes, you've got to first go the x tens of thousands of years in real time until you get to be the point of being the potato farmer. Well, that's basically the game. You just explain the beginning again? I will, but I have... I've got a meeting. Okay. But it's a potato farmer game. Yep. The the whole point of the game is that you're a potato farmer. You farm potatoes. Yeah. Yeah. It's just a simulator for potato farming. And that's for slop and churn fest. Yes. But it's played out in real time and the game starts at the start of the agricultural revolution. Right. So, like, it's in real time. Alright. So it's like -- You stop playing potato farm. It starts, you know, the start of the agricultural revolution, and you gotta get through that entire time span -- Okay. -- to become a potato farmer. So it's gonna be take, like, thousands of generations to finish that game. Right. But until you're a potato farmer, you haven't finished the game. Okay. That's the whole game. Okay.”</span>
     <span class="pb-more" id="pbmore">read all</span>
   </div>
 
