@@ -27,6 +27,17 @@
   }
   .wrap{max-width:1080px;margin:0 auto;padding:64px 18px 90px}
 
+  /* ---------- the source prompt ---------- */
+  .promptbar{display:flex;gap:11px;align-items:baseline;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;padding:8px 13px;font-size:11px;line-height:1.55;cursor:pointer;transition:border-color .14s}
+  .promptbar:hover{border-color:#3c4350}
+  .pb-label{color:var(--accent);font-weight:600;letter-spacing:.05em;white-space:nowrap}
+  .pb-text{color:var(--muted);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pb-text::before{content:'\201C'} .pb-text::after{content:'\201D'}
+  .promptbar.open .pb-text{white-space:normal;overflow:visible;text-overflow:clip}
+  .pb-more{color:var(--faint);white-space:nowrap;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase}
+  .promptbar:hover .pb-more{color:var(--accent2)}
+
   /* ---------- header ---------- */
   header.top{border-bottom:1px solid var(--line);padding:18px 0 22px;margin-bottom:22px}
   .kicker{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-bottom:11px}
@@ -172,6 +183,12 @@
 <nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Potato Farmer</span></nav>
 
 <div class="wrap">
+
+  <div class="promptbar" id="promptbar" title="The spoken transcript this game was built from, word for word.">
+    <span class="pb-label">From the prompt:</span>
+    <span class="pb-text">It's played in real time, but it starts at the industrial... the agricultural revolution. So while the aim of the game is to be a potato farmer farming potatoes, you've got to first go the x tens of thousands of years in real time until you get to be the point of being the potato farmer. Well, that's basically the game. You just explain the beginning again? I will, but I have... I've got a meeting. Okay. But it's a potato farmer game. Yep. The the whole point of the game is that you're a potato farmer. You farm potatoes. Yeah. Yeah. It's just a simulator for potato farming. And that's for slop and churn fest. Yes. But it's played out in real time and the game starts at the start of the agricultural revolution. Right. So, like, it's in real time. Alright. So it's like -- You stop playing potato farm. It starts, you know, the start of the agricultural revolution, and you gotta get through that entire time span -- Okay. -- to become a potato farmer. So it's gonna be take, like, thousands of generations to finish that game. Right. But until you're a potato farmer, you haven't finished the game. Okay. That's the whole game. Okay.</span>
+    <span class="pb-more" id="pbmore">read all</span>
+  </div>
 
   <header class="top">
     <div class="kicker">Slop &amp; Churn Fest · Real-Time Simulation</div>
@@ -530,6 +547,12 @@ const el = {
   log:$('log'), cCal:$('cCal'), cFinds:$('cFinds'), cTuber:$('cTuber'), cSpud:$('cSpud'),
   ach:$('ach'), achcap:$('achcap'), lockWhen:$('lockWhen'), toast:$('toast')
 };
+
+/* ---------- the source prompt ---------- */
+$('promptbar').addEventListener('click', function(){
+  const open = this.classList.toggle('open');
+  $('pbmore').textContent = open ? 'collapse' : 'read all';
+});
 
 /* ---------- toast ---------- */
 let toastTimer = null;
