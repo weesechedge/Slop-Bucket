@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Long Service — slow TV, with a job in it</title>
+<meta name="description" content="Slow television with a public sector job inside it: you are the conductor of a thirteen-hour train, and your laptop is four carriages away.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">The Long Service</span></nav>
+
+<canvas id="stage"></canvas>
+<div id="grain"></div>
+
+<!-- channel bug -->
+<div class="bug">
+  <span class="live"><i></i>LIVE</span>
+  <span class="ch">SLOW TV<em>THE LONG SERVICE</em></span>
+</div>
+
+<!-- timecode + service data -->
+<div class="tr">
+  <div class="tc" id="tc">00:00:00:00</div>
+  <div class="meta"><b id="svcClock">08:12</b> &nbsp;·&nbsp; <b id="spd">0 KM/H</b> &nbsp;·&nbsp; <b id="wx">—</b></div>
+</div>
+
+<!-- the job, as broadcast furniture -->
+<div class="hud">
+  <div class="top">
+    <span class="hc" id="hudClock">—</span>
+    <span class="hp" id="hudPhase">the commute</span>
+  </div>
+  <div class="hbar"><i id="hudBar"></i></div>
+  <div class="rows" id="hudRows"></div>
+</div>
+
+<div id="alert"></div>
+<div id="caption"></div>
+<div id="lower"></div>
+<div id="prompt"></div>
+
+<!-- line map -->
+<div class="lm">
+  <div class="lmhead"><span>TRONDHEIM</span><b id="lmNow">—</b><span>LINDESNES</span></div>
+  <div class="track" id="lmTrack">
+    <div class="done" id="lmDone"></div>
+    <div class="train" id="lmTrain" style="left:0%"></div>
+  </div>
+</div>
+
+<!-- ticker -->
+<div class="ticker">
+  <span class="tag">TODAY</span>
+  <span class="win"><span id="tkTrack"></span></span>
+</div>
+
+<!-- touch controls -->
+<div class="pad l"><button id="leftBtn" aria-label="walk forward">&#9664;</button><button id="rightBtn" aria-label="walk back">&#9654;</button></div>
+<div class="pad r"><button id="useBtn">USE</button></div>
+
+<!-- the laptop at 12A -->
+<div id="lapWrap"><div id="laptop"></div></div>
+
+<!-- modals -->
+<div id="modal"></div>
+
+<!-- title card -->
+<div id="boot">
+  <div class="bars">
+    <i style="background:#c0c0c0"></i><i style="background:#c0c000"></i><i style="background:#00c0c0"></i>
+    <i style="background:#00c000"></i><i style="background:#c000c0"></i><i style="background:#c00000"></i>
+    <i style="background:#0000c0"></i>
+  </div>
+  <div class="kick">SLOW TV &nbsp;·&nbsp; CONTINUOUS &nbsp;·&nbsp; ONE SECOND PER SECOND</div>
+  <h1>The Long&nbsp;Service</h1>
+  <p class="sub">The Nordkapp&ndash;Lindesnes through service, day three of four: Trondheim to Lindesnes,
+    938 km, thirteen hours and six minutes. You are the conductor. You are also an EL1, and the
+    working day &mdash; 09:00 to 17:06 &mdash; happens on a laptop at seat 12A, four carriages from the PA handset.
+    Nothing goes wrong. Everything is due at once.</p>
+  <p class="keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> walk the train &nbsp;·&nbsp; <kbd>E</kbd> use what you are standing at
+    &nbsp;·&nbsp; <kbd>Esc</kbd> get up &nbsp;·&nbsp; or tap where you want to go</p>
+  <div class="press" id="bootSub">PRESS ANY KEY</div>
+</div>
+
+<script src="core.js"></script>
+<script src="service.js"></script>
+<script src="world.js"></script>
+<script src="job.js"></script>
+<script src="main.js"></script>
+<script>
+/* Station ticks on the line map, built once from the timetable. */
+(function () {
+  const track = document.getElementById('lmTrack');
+  const a = SERVICE.START_KM, b = SERVICE.END_KM;
+  SERVICE.TT.forEach((s, i) => {
+    const el = document.createElement('span');
+    /* Only the halfway landmark gets a label; the two ends are already named
+       in the header above the track. */
+    const major = i === 0 || i === SERVICE.TT.length - 1 || s.name === 'Oslo S';
+    el.className = 'tick' + (major ? ' major' : '');
+    el.style.left = ((s.km - a) / (b - a) * 100).toFixed(2) + '%';
+    if (s.name === 'Oslo S') el.innerHTML = '<em>' + s.name + '</em>';
+    track.appendChild(el);
+  });
+})();
+</script>
+</body>
+</html>
