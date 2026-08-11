@@ -60,7 +60,7 @@
 
 <!-- touch controls -->
 <div class="pad l"><button id="leftBtn" aria-label="walk forward">&#9664;</button><button id="rightBtn" aria-label="walk back">&#9654;</button></div>
-<div class="pad r"><button id="useBtn">USE</button></div>
+<div class="pad r"><button id="takeBtn">LAPTOP</button><button id="useBtn">USE</button></div>
 
 <!-- the laptop at 12A -->
 <div id="lapWrap"><div id="laptop"></div></div>
@@ -80,13 +80,16 @@
   <p class="sub">The Nordkapp&ndash;Lindesnes through service, day three of four: Trondheim to Lindesnes,
     938 km, thirteen hours and six minutes. You are the conductor. You are also an EL1, and the
     working day &mdash; 09:00 to 17:06 &mdash; happens on a laptop at seat 12A, four carriages from the PA handset.
-    Nothing goes wrong. Everything is due at once.</p>
+    Carry the laptop with you and you can work anywhere, slowly. Leave any of it undone and something
+    mildly annoying happens instead. Nothing can end the run.</p>
   <p class="keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> walk the train &nbsp;·&nbsp; <kbd>E</kbd> use what you are standing at
-    &nbsp;·&nbsp; <kbd>Esc</kbd> get up &nbsp;·&nbsp; or tap where you want to go</p>
+    &nbsp;·&nbsp; <kbd>F</kbd> pick up or put down the laptop &nbsp;·&nbsp; <kbd>Esc</kbd> close it
+    <br>or tap where you want to go &nbsp;·&nbsp; sound is on, and there is a switch for it on the guard's desk</p>
   <div class="press" id="bootSub">PRESS ANY KEY</div>
 </div>
 
 <script src="core.js"></script>
+<script src="audio.js"></script>
 <script src="service.js"></script>
 <script src="world.js"></script>
 <script src="job.js"></script>
@@ -98,12 +101,13 @@
   const a = SERVICE.START_KM, b = SERVICE.END_KM;
   SERVICE.TT.forEach((s, i) => {
     const el = document.createElement('span');
-    /* Only the halfway landmark gets a label; the two ends are already named
-       in the header above the track. */
+    /* No tick labels: the two ends are named in the header and the live
+       readout between them names the next stop, which is the only one that
+       matters. A third label just collides with the other two. */
     const major = i === 0 || i === SERVICE.TT.length - 1 || s.name === 'Oslo S';
     el.className = 'tick' + (major ? ' major' : '');
     el.style.left = ((s.km - a) / (b - a) * 100).toFixed(2) + '%';
-    if (s.name === 'Oslo S') el.innerHTML = '<em>' + s.name + '</em>';
+    el.title = s.name;
     track.appendChild(el);
   });
 })();

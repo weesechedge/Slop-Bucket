@@ -15,14 +15,19 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#05060a}
 body{
   font-family:var(--mono);color:var(--ink);
   -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
-  user-select:none;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;                 /* iOS: no magnifier, no share sheet */
+  touch-action:manipulation;overscroll-behavior:none;
 }
-button{font-family:var(--mono);cursor:pointer;color:inherit}
+button{font-family:var(--mono);cursor:pointer;color:inherit;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  touch-action:none;-webkit-tap-highlight-color:transparent}
 kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-bottom-width:2px;
   border-radius:4px;padding:1px 5px;color:var(--muted);background:#0c0f14}
 
 /* ------------------------------------------------------------- the shot */
-#stage{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;cursor:pointer}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;cursor:pointer;
+  touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 #stage.tunnel{cursor:progress}
 #grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.045;
   background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0 1px,transparent 1px 3px)}
@@ -102,6 +107,8 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
 #prompt.on{opacity:1;transform:translate(-50%,0)}
 #prompt .pl{font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #prompt .pl em{font-style:normal;color:var(--amber);margin-right:6px}
+#prompt .ph{font-size:10px;color:var(--faint);margin-left:-4px}
+#prompt kbd{flex:0 0 auto}
 #prompt.busy{border-color:#6a5330;min-width:min(340px,86vw)}
 #prompt .pbar{flex:1;height:3px;background:#0b0e13;border-radius:2px;overflow:hidden;min-width:60px}
 #prompt .pbar i{display:block;height:100%;background:var(--amber)}
@@ -142,7 +149,10 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
 .pad.l{left:14px} .pad.r{right:14px}
 .pad button{width:54px;height:54px;border-radius:50%;background:rgba(9,11,15,.7);
   border:1px solid rgba(255,255,255,.12);font-size:17px;backdrop-filter:blur(6px)}
-.pad.r button{width:auto;padding:0 18px;border-radius:27px;font-size:11px;letter-spacing:.14em}
+.pad button:active{background:rgba(224,144,63,.28);border-color:var(--amber)}
+.pad.r{flex-direction:column;align-items:flex-end;gap:8px}
+.pad.r button{width:auto;padding:0 16px;height:44px;border-radius:22px;font-size:10.5px;letter-spacing:.12em}
+.pad.r #useBtn{height:54px;padding:0 22px;border-radius:27px;font-size:11.5px}
 @media (hover:none),(max-width:860px){ .pad{display:flex} }
 /* A phone has to stack the furniture: ticker, line map, thumb pads, prompt,
    lower third, caption — in that order up from the bottom. */
@@ -150,18 +160,27 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
   .bug{top:42px;gap:7px} .bug .ch{font-size:13px} .bug .ch em{display:none}
   .bug .live{font-size:8.5px}
   .tr{top:40px} .tr .tc{font-size:12px} .tr .meta{font-size:8px;letter-spacing:.1em}
-  .hud{top:74px;right:12px;width:158px;padding:7px 9px}
-  .hud .hc{font-size:18px} .hud .rows div{font-size:9.5px}
-  .pad{bottom:104px} .pad button{width:48px;height:48px;font-size:15px}
-  .pad.r button{padding:0 14px;font-size:10px}
-  #prompt{bottom:172px;font-size:10.5px;padding:7px 12px}
+  .hud{top:74px;right:12px;width:150px;padding:7px 9px}
+  .hud .top{flex-direction:column;align-items:flex-start;gap:1px}
+  .hud .hc{font-size:18px}
+  .hud .hp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .hud .rows div{font-size:9.5px}
+  /* The stack, from the bottom: ticker, line map, thumbs, prompt, lower third.
+     Nothing may sit on top of anything else, least of all on a thumb. */
+  .pad{bottom:96px} .pad button{width:48px;height:48px;font-size:15px}
+  .pad.r{flex-direction:row;align-items:center;gap:8px}
+  .pad.r button{width:auto;padding:0 13px;height:48px;border-radius:24px;font-size:10px}
+  .pad.r #useBtn{height:48px;padding:0 16px;border-radius:24px;font-size:11px}
+  #prompt{bottom:152px;padding:7px 12px;max-width:94vw}
   #prompt .pl{font-size:10.5px}
-  #lower{bottom:212px;max-width:86vw;padding:9px 16px 10px 13px}
-  #lower b{font-size:20px}
-  #caption{bottom:296px;max-width:78vw}
+  #prompt .ph{display:none}
+  #lower{bottom:196px;max-width:88vw;padding:8px 15px 9px 12px}
+  #lower b{font-size:19px} #lower span{font-size:9.5px}
+  #caption{bottom:280px;max-width:78vw}
   #alert{top:44px;min-width:0;max-width:88vw;padding:7px 12px}
-  #laptop{height:min(660px,78vh)}
+  #laptop{height:min(660px,80vh)}
   .lm{height:56px;padding:18px 12px 0}
+  .ticker .tk{font-size:10px;padding:0 18px}
 }
 
 /* ==========================================================  THE LAPTOP */
@@ -169,6 +188,10 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
   padding:26px 16px;background:rgba(3,4,7,.62);backdrop-filter:blur(3px);
   opacity:0;pointer-events:none;transition:opacity .26s}
 #lapWrap.on{opacity:1;pointer-events:auto}
+/* Working with it under one arm: narrower, tilted, and it says so. */
+#laptop.carried{width:min(680px,92vw);transform:rotate(-.5deg)}
+#lapWrap.on #laptop.carried{transform:rotate(-.5deg)}
+#laptop.carried .lap-org::after{content:' · ON YOUR ARM · SLOWER';color:var(--amber)}
 #laptop{width:min(940px,96vw);height:min(660px,86vh);display:flex;flex-direction:column;
   background:#12151b;border:1px solid #2c313c;border-radius:12px;overflow:hidden;
   box-shadow:0 36px 90px rgba(0,0,0,.72),0 0 0 8px rgba(20,23,29,.85),0 0 0 9px #2c313c;

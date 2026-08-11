@@ -333,6 +333,8 @@ const JOB = (function () {
   };
 
   let ST, S, emit = () => {}, alertFn = () => {}, root = null, seated = false;
+  /* Working with the laptop under one arm is slower than working at a table. */
+  let speedMul = 1;
   let plan = [], elapsedSvc = 0, dirty = true, tab = 'mail', openMailId = null;
 
   /* ============================================================ the plan */
@@ -467,7 +469,7 @@ const JOB = (function () {
     if (S.busy) return false;
     const T = TASKS[id];
     const r = LS.rng((Date.now() & 0xffffff) ^ LS.hash32(id));
-    const secs = Math.round(LS.rint(r, T.secs[0], T.secs[1]) * (1 + (1 - S.focus) * 0.75));
+    const secs = Math.round(LS.rint(r, T.secs[0], T.secs[1]) * (1 + (1 - S.focus) * 0.75) * speedMul);
     S.busy = { id, arg: arg || {}, from: Date.now(), to: Date.now() + secs * 1000, work: T.work, lab: T.lab(arg || {}) };
     dirty = true; return true;
   }
@@ -993,8 +995,17 @@ const JOB = (function () {
     return hit;
   }
 
+  /* Something outside the laptop putting something into the inbox. */
+  function inject(from, role, subj, body, urgent) {
+    S.mail.push({ id: 'x' + Date.now() + Math.random().toString(36).slice(2, 5), t: stamp(),
+                  from, role: role || '', sec: 'OFFICIAL', subj, body: body + SIG,
+                  u: urgent ? 1 : 0, read: 0, rep: 0, y: 0 });
+    S.c.mails++; trim(); dirty = true;
+  }
+
   return {
-    init, catchUp, tick, mountUI, render, setSeated, addFocus, reset, disrupt,
+    init, catchUp, tick, mountUI, render, setSeated, addFocus, reset, disrupt, inject,
+    setSpeed: v => { speedMul = v; },
     joinMeeting, liveMeeting, questions,
     state: () => S,
     dirty: () => { const d = dirty; dirty = false; return d; },

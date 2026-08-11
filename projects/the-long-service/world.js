@@ -46,16 +46,29 @@ const WORLD = (function () {
   /* ------------------------------------------------------------ hotspots */
   const V = n => SEG.find(s => s.t === 'vest' && s.n === n);
   const CARC = SEG.find(s => s.desk);
+  /* 12A has to be a real seat, not a round number, or the tray table and the
+     laptop on it end up between two rows and never get drawn. */
+  const DESK_X = CARC.x0 + 52 + 3 * PITCH;
+  /* The tray table is on the back of the seat in front, so the laptop lives a
+     little ahead of where you stand — otherwise you are drawn on top of it. */
+  const LAPTOP_HOME = DESK_X - 26;
+  /* Where you stand, and where the thing you are using actually is: a few
+     units apart, so the conductor is never drawn on top of it. */
+  const PA1_X = V(1).x0 + 62,  PA1_OBJ = V(1).x0 + 100;
+  const PA2_X = 3000 + 80,     PA2_OBJ = 3000 + 114;
+  const THERM_X = 1074,        THERM_OBJ = 1040;
+  const BUFFET_X = 1700 + 250;
   const HOT = [
-    { id: 'pa1',   x: V(1).x0 + 66,   label: 'PA handset',      verb: 'Make the announcement', icon: 'pa' },
+    { id: 'pa1',   x: PA1_X,          label: 'PA handset',      verb: 'Make the announcement', icon: 'pa' },
     { id: 'door1', x: V(1).x0 + 24,   label: 'Doors · car A',   verb: 'Work the doors',        icon: 'door' },
     { id: 'door2', x: V(2).x0 + 65,   label: 'Doors · quiet car', verb: 'Work the doors',      icon: 'door' },
     { id: 'door3', x: V(3).x0 + 65,   label: 'Doors · buffet',  verb: 'Work the doors',        icon: 'door' },
-    { id: 'buffet', x: 1700 + 250,    label: 'Buffet counter',  verb: 'Make a cup of tea',     icon: 'tea' },
+    { id: 'buffet', x: BUFFET_X,      label: 'Buffet counter',  verb: 'Make a cup of tea',     icon: 'tea' },
     { id: 'door4', x: V(4).x0 + 65,   label: 'Doors · car C',   verb: 'Work the doors',        icon: 'door' },
-    { id: 'desk',  x: CARC.x0 + 250,  label: 'Seat 12A · your laptop', verb: 'Sit down and work', icon: 'laptop' },
+    { id: 'desk',  x: DESK_X,         label: 'Seat 12A', verb: 'Sit down and work', icon: 'laptop' },
     { id: 'door5', x: V(5).x0 + 65,   label: 'Doors · van',     verb: 'Work the doors',        icon: 'door' },
-    { id: 'pa2',   x: V(5).x0 + 100,  label: 'PA handset',      verb: 'Make the announcement', icon: 'pa' },
+    { id: 'pa2',   x: PA2_X,          label: 'PA handset',      verb: 'Make the announcement', icon: 'pa' },
+    { id: 'therm', x: THERM_X,        label: 'Heating panel',   verb: 'Adjust the heating',    icon: 'therm' },
     { id: 'log',   x: 3000 + 170,     label: 'Guard’s desk',    verb: 'The service record',    icon: 'book' },
     { id: 'window', x: SEG.find(s => s.code === 'A').x0 + 300, label: 'A window',
       verb: 'Look out of it',  icon: 'win' },
@@ -96,7 +109,11 @@ const WORLD = (function () {
 
   /* ============================================================== state */
   let cv, g, off, offg, W = 0, H = 0, S = 1, camX = 0, t = 0, portrait = false;
-  const player = { x: CARC.x0 + 250, vx: 0, face: 1, phase: 0, seated: false, target: null };
+  const player = { x: DESK_X, vx: 0, face: 1, phase: 0, seated: false, target: null };
+  /* The laptop is a thing with a position, not a menu. It starts on the tray
+     table at 12A and can be picked up and put down anywhere on the train. */
+  const laptop = { x: LAPTOP_HOME, carried: false, open: false };
+  let duties = [];
   let jolt = 0, joltV = 0, lastJoltKm = 0;
   let pax = [];
   let sunPhase = 0;
@@ -109,7 +126,7 @@ const WORLD = (function () {
   function seedPax() {
     pax = [];
     let id = 0;
-    SEG.filter(s => s.t === 'car' || s.t === 'buffet').forEach(seg => {
+    SEG.filter(s => s.t === 'car').forEach(seg => {
       const rows = SEAT_ROWS(seg);
       for (let r = 0; r < rows; r++) {
         if (LS.h01('occ' + seg.code + r) > (seg.quiet ? 0.55 : 0.72)) continue;
@@ -154,7 +171,7 @@ const WORLD = (function () {
     }
     const on = LS.rint(r, 1, 4);
     const free = [];
-    SEG.filter(s => s.t === 'car' || s.t === 'buffet').forEach(seg => {
+    SEG.filter(s => s.t === 'car').forEach(seg => {
       for (let row = 0; row < SEAT_ROWS(seg); row++) {
         const x = seatX(seg, row);
         if (!pax.some(p => Math.abs(p.x - x) < 6 && p.state === 'seated')) free.push({ seg, row, x });
@@ -258,7 +275,12 @@ const WORLD = (function () {
     if (player.seated) return HOT.find(h => h.id === 'desk');
     let best = null, bd = REACH;
     for (const h of HOT) { const d = Math.abs(h.x - player.x); if (d < bd) { bd = d; best = h; } }
-    /* A passenger with a hand up outranks the furniture. */
+    /* A passenger with a hand up, or a job lying on the floor, outranks the
+       furniture — those are the things that are actually waiting for you. */
+    for (const d of duties) {
+      const dd = Math.abs(d.x - player.x);
+      if (dd < REACH) return { id: 'duty:' + d.id, x: d.x, label: d.label, verb: d.verb, duty: d };
+    }
     for (const p of pax) if (p.wants && p.state === 'seated') {
       const d = Math.abs(p.x - player.x);
       if (d < REACH) return { id: 'pax:' + p.id, x: p.x, label: 'Seat ' + p.seat, verb: 'See what they want', icon: 'ask', pax: p };
@@ -311,7 +333,9 @@ const WORLD = (function () {
     vis.forEach(s => upper(s, P, sk));            /* ceiling, lamps, racks   */
     vis.forEach(s => fittings(s, P, sk, st));     /* doors, buffet, van      */
     vis.forEach(s => farSeats(s, P));
+    if (!laptop.carried) drawLaptop(laptop.x, P);
     drawPax(P, sk);
+    drawDuties(P);
     vis.forEach(s => aisle(s, P, sk));
     if (P.d > 0.12 && !tun && !st.atStop) sunPools(vis, P, sk);
     if (!player.seated) drawConductor(P);
@@ -639,31 +663,79 @@ const WORLD = (function () {
       g.fillStyle = P.metal;
       g.fillRect(sx(s.x0 + 18), sy(CEIL + 12), 2.6 * S, sy(FLOOR) - sy(CEIL + 12));
       /* bin */
-      g.fillStyle = LS.mix(P.metal, '#000', 0.35);
-      LS.roundRect(g, sx(s.x1 - 34), sy(-42), 18 * S, 42 * S, 3 * S); g.fill();
+      g.fillStyle = LS.mix(P.metal, '#000', 0.4);
+      LS.roundRect(g, sx(s.x1 - 34), sy(-40), 18 * S, 40 * S, 3 * S); g.fill();
+      g.fillStyle = LS.mix(P.metal, '#000', 0.62);
+      LS.roundRect(g, sx(s.x1 - 34), sy(-40), 18 * S, 5 * S, 2 * S); g.fill();
+      g.fillStyle = LS.rgba('#000', 0.5);
+      g.fillRect(sx(s.x1 - 31), sy(-38.5), 12 * S, 2 * S);
+      /* the PA handset, on the wall of the front vestibule */
+      if (s.n === 1) handset(PA1_OBJ, P);
     }
+    if (s.quiet) thermostat(THERM_OBJ, P);
     if (s.t === 'buffet') {
-      const cx = sx(1700 + 210), cw = 120 * S;
-      g.fillStyle = LS.mix(P.wall, '#241c14', 0.45);
-      g.fillRect(cx, sy(-58), cw, 58 * S);
-      g.fillStyle = LS.mix(P.cloth, '#fff', 0.25);
-      g.fillRect(cx - 4 * S, sy(-62), cw + 8 * S, 5 * S);
-      /* urn, cups, a menu board nobody reads */
-      g.fillStyle = P.metal;
-      LS.roundRect(g, cx + 12 * S, sy(-84), 16 * S, 23 * S, 2 * S); g.fill();
-      g.fillStyle = LS.rgba('#e8ddc8', 0.85);
-      for (let i = 0; i < 5; i++) g.fillRect(cx + (44 + i * 8) * S, sy(-70), 5 * S, 8 * S);
-      /* the menu board, up on the bulkhead where it does not sit over a window */
+      /* A counter down most of the car, a machine, cups, a till, and stools
+         nobody sits on because the train is moving. */
+      const c0 = s.x0 + 56, c1 = s.x1 - 70;
+      const a2 = sx(c0), w2 = (c1 - c0) * S;
+      /* back fitting: shelves and an urn, against the wall */
+      g.fillStyle = LS.mix(P.wall, '#241c14', 0.5);
+      g.fillRect(a2, sy(-104), w2, 46 * S);
+      g.fillStyle = LS.rgba('#000', 0.22);
+      g.fillRect(a2, sy(-86), w2, 1.6 * S);
+      g.fillRect(a2, sy(-72), w2, 1.6 * S);
+      /* bottles and packets on the shelf, all the same four shapes */
+      for (let i = 0; i < 14; i++) {
+        const bx = sx(c0 + 14 + i * 13), hh = LS.hash32('bf' + i);
+        g.fillStyle = ['#7a4b3e', '#3f4a5c', '#6b6257', '#4a5240'][(hh >>> 3) % 4];
+        g.fillRect(bx, sy(-86) - (7 + hh % 6) * S, 7 * S, (7 + hh % 6) * S);
+      }
+      /* the counter itself */
+      g.fillStyle = LS.mix(P.dado, '#000', 0.18);
+      g.fillRect(a2, sy(-56), w2, 56 * S);
+      g.fillStyle = LS.mix(P.cloth, '#fff', 0.3);
+      g.fillRect(a2 - 5 * S, sy(-60), w2 + 10 * S, 4.6 * S);
+      g.fillStyle = LS.rgba('#000', 0.25);
+      g.fillRect(a2 - 5 * S, sy(-55.4), w2 + 10 * S, 1.4 * S);
+      coffeeMachine(BUFFET_X - 46, P);
+      /* cups, upturned, in a row */
+      for (let i = 0; i < 6; i++) {
+        const ux = sx(BUFFET_X + 4 + i * 9);
+        g.fillStyle = LS.rgba('#e8ddc8', 0.9);
+        g.fillRect(ux, sy(-70), 5.6 * S, 9 * S);
+        g.fillStyle = LS.rgba('#000', 0.2);
+        g.fillRect(ux, sy(-70), 5.6 * S, 1.5 * S);
+      }
+      /* the till */
+      g.fillStyle = LS.mix(P.metal, '#000', 0.3);
+      LS.roundRect(g, sx(BUFFET_X + 62), sy(-76), 24 * S, 16 * S, 2 * S); g.fill();
+      g.fillStyle = LS.rgba('#69a2e0', 0.45);
+      g.fillRect(sx(BUFFET_X + 66), sy(-73), 16 * S, 5 * S);
+      /* a pie under a lamp, going nowhere */
+      g.fillStyle = LS.rgba('#e0903f', 0.25);
+      g.fillRect(sx(BUFFET_X + 96), sy(-78), 22 * S, 18 * S);
+      g.fillStyle = '#8a6034';
+      g.beginPath(); g.ellipse(sx(BUFFET_X + 107), sy(-62), 8 * S, 3.4 * S, 0, 0, 7); g.fill();
+      /* two stools */
+      for (let i = 0; i < 2; i++) {
+        const stx = sx(c1 + 18 + i * 26);
+        g.fillStyle = LS.mix(P.metal, '#000', 0.35);
+        g.fillRect(stx - 1.4 * S, sy(-34), 2.8 * S, 34 * S);
+        g.fillStyle = LS.mix(P.seat, '#000', 0.15);
+        g.beginPath(); g.ellipse(stx, sy(-35), 9 * S, 3 * S, 0, 0, 7); g.fill();
+      }
+      /* the menu board, up on the bulkhead */
       g.fillStyle = LS.mix(P.dark, '#000', 0.2);
-      LS.roundRect(g, cx + cw * 0.40, sy(-138), 66 * S, 26 * S, 2 * S); g.fill();
-      g.fillStyle = LS.rgba(P.lamp, 0.55);
+      LS.roundRect(g, sx(BUFFET_X - 30), sy(-140), 68 * S, 27 * S, 2 * S); g.fill();
+      g.fillStyle = LS.rgba(P.lamp, 0.6);
       g.font = (5 * S).toFixed(1) + 'px "IBM Plex Mono",monospace';
-      g.fillText('TEA   COFFEE', cx + cw * 0.435, sy(-130));
-      g.fillText('PIE   LAMINGTON', cx + cw * 0.435, sy(-123.5));
-      g.fillStyle = LS.rgba(P.lamp, 0.3);
-      g.fillText('closed 0200-0530', cx + cw * 0.435, sy(-117));
+      g.fillText('TEA   COFFEE', sx(BUFFET_X - 25), sy(-132));
+      g.fillText('PIE   LAMINGTON', sx(BUFFET_X - 25), sy(-125.5));
+      g.fillStyle = LS.rgba(P.lamp, 0.32);
+      g.fillText('closed 0200-0530', sx(BUFFET_X - 25), sy(-119));
     }
     if (s.t === 'van') {
+      handset(PA2_OBJ, P);
       /* A desk, a clipboard, boxes, and a bicycle that is not yours. */
       g.fillStyle = LS.mix(P.wall, '#2a2018', 0.5);
       g.fillRect(sx(s.x0 + 140), sy(-56), 90 * S, 56 * S);
@@ -715,7 +787,7 @@ const WORLD = (function () {
 
   /* ---------------------------------------------------------- the seats */
   function farSeats(s, P) {
-    if (s.t !== 'car' && s.t !== 'buffet') return;
+    if (s.t !== 'car') return;
     const rows = SEAT_ROWS(s);
     for (let r = 0; r < rows; r++) {
       const x = sx(seatX(s, r) - 24), w = 44 * S;
@@ -730,32 +802,117 @@ const WORLD = (function () {
       LS.roundRect(g, x + 3 * S, top + 2 * S, w - 6 * S, 13 * S, 2 * S); g.fill();
       g.fillStyle = LS.rgba(P.dark, 0.18);
       g.fillRect(x, sy(-30), w, 1.4 * S);
-      /* the tray table on the back of 12A's seat, with the laptop on it */
-      if (s.desk && Math.abs(seatX(s, r) - (CARC.x0 + 250)) < 4) tray(seatX(s, r), P);
+      /* the tray table on the back of 12A's seat */
+      if (s.desk && Math.abs(seatX(s, r) - DESK_X) < 2) tray(LAPTOP_HOME, P);
     }
   }
   function tray(wx, P) {
-    const x = sx(wx + 20), y = sy(-46);
-    g.fillStyle = LS.mix(P.cloth, '#2a2620', 0.55);
-    LS.roundRect(g, x, y, 34 * S, 3.4 * S, 1.4 * S); g.fill();
-    /* laptop, lid open, screen facing away — a rectangle of light on the wall */
-    g.fillStyle = '#20242c';
-    g.save();
-    g.translate(x + 5 * S, y);
-    g.transform(1, 0, -0.22, 1, 0, 0);
-    g.fillRect(0, -20 * S, 24 * S, 20 * S);
-    g.restore();
-    g.fillStyle = LS.rgba('#8fbfe6', 0.5 + Math.sin(t * 3) * 0.04);
-    g.save();
-    g.translate(x + 5 * S, y);
-    g.transform(1, 0, -0.22, 1, 0, 0);
-    g.fillRect(1.5 * S, -18.5 * S, 21 * S, 17 * S);
-    g.restore();
-    g.fillStyle = '#2a2f38';
-    g.fillRect(x + 2 * S, y - 1.6 * S, 28 * S, 2.2 * S);
+    const x = sx(wx);
+    g.fillStyle = LS.mix(P.cloth, '#2a2620', 0.42);
+    LS.roundRect(g, x - 21 * S, sy(-57), 42 * S, 3.2 * S, 1.3 * S); g.fill();
+    g.fillStyle = LS.rgba('#000', 0.32);
+    g.fillRect(x - 21 * S, sy(-54.2), 42 * S, 1.3 * S);
+    /* the arm it folds down on */
+    g.fillStyle = LS.mix(P.metal, '#000', 0.45);
+    g.fillRect(x + 17 * S, sy(-54), 2.2 * S, 9 * S);
   }
+  /* A wall-mounted handset in a recessed box, with the cord it always has. */
+  function handset(wx, P) {
+    const x = sx(wx), y = sy(-96);
+    g.fillStyle = LS.mix(P.wallLo, '#000', 0.35);
+    LS.roundRect(g, x - 9 * S, y, 18 * S, 30 * S, 2 * S); g.fill();
+    g.fillStyle = LS.rgba(P.lamp, 0.10);
+    g.fillRect(x - 7 * S, y + 2 * S, 14 * S, 6 * S);
+    /* the handset itself, hung on its cradle */
+    g.fillStyle = '#20242c';
+    LS.roundRect(g, x - 4.5 * S, y + 9 * S, 9 * S, 17 * S, 2.6 * S); g.fill();
+    g.fillStyle = '#2f3540';
+    LS.roundRect(g, x - 4.5 * S, y + 9 * S, 9 * S, 4 * S, 2 * S); g.fill();
+    LS.roundRect(g, x - 4.5 * S, y + 22 * S, 9 * S, 4 * S, 2 * S); g.fill();
+    /* the curly cord */
+    g.strokeStyle = '#20242c'; g.lineWidth = Math.max(1, 1.5 * S);
+    g.beginPath();
+    for (let i = 0; i <= 22; i++) {
+      const p2 = i / 22;
+      g.lineTo(x + Math.sin(p2 * 13) * 4 * S, y + (26 + p2 * 16) * S);
+    }
+    g.stroke();
+    g.fillStyle = LS.rgba('#d8b23c', 0.55);
+    g.font = '600 ' + (4.4 * S).toFixed(1) + 'px "IBM Plex Mono",monospace';
+    g.textAlign = 'center';
+    g.fillText('P.A.', x, y - 3 * S);
+    g.textAlign = 'left';
+  }
+
+  /* An espresso machine that has seen a great deal of service. */
+  function coffeeMachine(wx, P) {
+    const x = sx(wx), base = sy(-58);
+    g.fillStyle = LS.mix(P.metal, '#000', 0.18);
+    LS.roundRect(g, x - 20 * S, base - 34 * S, 40 * S, 34 * S, 2.4 * S); g.fill();
+    g.fillStyle = LS.mix(P.metal, '#fff', 0.28);
+    g.fillRect(x - 20 * S, base - 34 * S, 40 * S, 4 * S);
+    /* group head and the portafilter hanging off it */
+    g.fillStyle = LS.mix(P.metal, '#000', 0.5);
+    g.fillRect(x - 12 * S, base - 18 * S, 10 * S, 6 * S);
+    g.fillRect(x - 10 * S, base - 13 * S, 3 * S, 5 * S);
+    g.fillStyle = '#2a2018';
+    LS.roundRect(g, x - 15 * S, base - 9 * S, 12 * S, 3.4 * S, 1.4 * S); g.fill();
+    /* steam wand */
+    g.strokeStyle = LS.mix(P.metal, '#000', 0.4); g.lineWidth = Math.max(1, 1.6 * S);
+    g.beginPath(); g.moveTo(x + 13 * S, base - 22 * S); g.lineTo(x + 15 * S, base - 8 * S); g.stroke();
+    /* the little lights, one of which is always the wrong colour */
+    g.fillStyle = '#79c06a'; g.beginPath(); g.arc(x + 4 * S, base - 27 * S, 1.7 * S, 0, 7); g.fill();
+    g.fillStyle = Math.sin(t * 1.6) > 0 ? '#e4554e' : '#5a2f2c';
+    g.beginPath(); g.arc(x + 10 * S, base - 27 * S, 1.7 * S, 0, 7); g.fill();
+    /* steam */
+    g.fillStyle = LS.rgba('#fff', 0.05);
+    for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.5 + i * 0.33) % 1;
+      g.beginPath();
+      g.arc(x - 7 * S + Math.sin(ph * 6 + i) * 4 * S, base - 36 * S - ph * 22 * S,
+            (1.6 + ph * 4) * S, 0, 7);
+      g.fill();
+    }
+  }
+
+  function thermostat(wx, P) {
+    const x = sx(wx), y = sy(-92);
+    g.fillStyle = LS.mix(P.wallLo, '#000', 0.3);
+    LS.roundRect(g, x - 7 * S, y, 14 * S, 18 * S, 2 * S); g.fill();
+    g.fillStyle = LS.rgba('#69a2e0', 0.5);
+    g.fillRect(x - 4.5 * S, y + 3 * S, 9 * S, 5 * S);
+    g.fillStyle = LS.rgba(P.lamp, 0.35);
+    g.beginPath(); g.arc(x, y + 12.5 * S, 2.6 * S, 0, 7); g.fill();
+  }
+
+  /* The laptop, wherever it happens to be. */
+  /* Drawn above the near-side seat backs whatever it is resting on, because a
+     laptop you cannot see is a laptop you will not go and get. */
+  function drawLaptop(wx, P) {
+    const x = sx(wx), y = sy(-57);
+    g.save();
+    g.translate(x, y);
+    /* base */
+    g.fillStyle = '#2a2f38';
+    LS.roundRect(g, -14 * S, -2.6 * S, 28 * S, 2.8 * S, 1 * S); g.fill();
+    /* lid, tipped away from the camera, screen light spilling out */
+    g.fillStyle = '#20242c';
+    g.beginPath();
+    g.moveTo(-12 * S, -2.6 * S); g.lineTo(-7 * S, -21 * S);
+    g.lineTo(15 * S, -21 * S); g.lineTo(13 * S, -2.6 * S);
+    g.closePath(); g.fill();
+    g.fillStyle = LS.rgba('#8fbfe6', 0.42 + Math.sin(t * 3) * 0.05);
+    g.beginPath();
+    g.moveTo(-10 * S, -4 * S); g.lineTo(-5.6 * S, -19.4 * S);
+    g.lineTo(13.4 * S, -19.4 * S); g.lineTo(11.6 * S, -4 * S);
+    g.closePath(); g.fill();
+    g.fillStyle = LS.rgba('#8fbfe6', 0.06);
+    g.beginPath(); g.arc(3 * S, -12 * S, 26 * S, 0, 7); g.fill();
+    g.restore();
+  }
+
   function nearSeats(s, P) {
-    if (s.t !== 'car' && s.t !== 'buffet') return;
+    if (s.t !== 'car') return;
     const rows = SEAT_ROWS(s);
     /* Offset half a pitch so the near row interleaves with the far one. */
     for (let r = -1; r <= rows; r++) {
@@ -804,7 +961,7 @@ const WORLD = (function () {
     g.save();
     g.globalCompositeOperation = 'lighter';
     vis.forEach(s => {
-      if (s.t !== 'car' && s.t !== 'buffet') return;
+      if (s.t !== 'car') return;
       const rows = Math.floor((s.w - 40) / PITCH);
       for (let i = 0; i < rows; i++) {
         const wx = s.x0 + 30 + i * PITCH + WIN_W / 2;
@@ -916,6 +1073,23 @@ const WORLD = (function () {
     /* arm */
     g.strokeStyle = '#1e2634'; g.lineWidth = 4.4 * S;
     g.beginPath(); g.moveTo(f * 6 * S, sy(-98)); g.lineTo(f * 8 * S - sw * 0.6, sy(-62)); g.stroke();
+    /* the laptop, carried under the arm on the camera side */
+    if (laptop.carried) {
+      g.save();
+      g.translate(-f * 12 * S, sy(-62) - (moving ? Math.abs(Math.sin(player.phase)) * 1.4 * S : 0));
+      g.rotate(f * 0.12);
+      g.fillStyle = '#20242c';
+      LS.roundRect(g, -11 * S, -8 * S, 22 * S, 16 * S, 1.6 * S); g.fill();
+      g.fillStyle = '#2f3540';
+      g.fillRect(-11 * S, -1 * S, 22 * S, 1.6 * S);
+      g.fillStyle = LS.rgba('#8fbfe6', 0.35);
+      g.fillRect(-9 * S, -6 * S, 18 * S, 1.4 * S);
+      g.restore();
+      /* the arm holding it */
+      g.strokeStyle = '#1e2634'; g.lineWidth = 4.4 * S;
+      g.beginPath(); g.moveTo(-f * 6 * S, sy(-96)); g.lineTo(-f * 11 * S, sy(-64)); g.stroke();
+    }
+
     /* head and cap */
     g.fillStyle = '#e0b189';
     g.beginPath(); g.arc(0, sy(-112), 8.2 * S, 0, 7); g.fill();
@@ -934,6 +1108,54 @@ const WORLD = (function () {
     g.lineCap = 'butt';
   }
 
+  /* ------------------------------------------------------------- duties
+     Small jobs that appear along the train and sit there until somebody deals
+     with them. Each is drawn as the thing itself plus a marker you can see
+     from down the carriage. */
+  const DUTY_LOOK = {
+    litter:  { c: '#c9c2ae', n: 'litter' },
+    ticket:  { c: '#8fc4e6', n: 'ticket' },
+    heat:    { c: '#e08b5a', n: 'heating' },
+    lost:    { c: '#b58fd6', n: 'lost property' },
+    reserve: { c: '#d8c46a', n: 'reservations' }
+  };
+  function drawDuties(P) {
+    for (const d of duties) {
+      const x = sx(d.x);
+      if (x < -60 || x > W + 60) continue;
+      const look = DUTY_LOOK[d.kind] || DUTY_LOOK.litter;
+      if (d.kind === 'litter') {
+        g.fillStyle = '#ded7c6';
+        g.beginPath();
+        g.moveTo(x - 4 * S, sy(-1)); g.lineTo(x - 3 * S, sy(-9));
+        g.lineTo(x + 3 * S, sy(-9)); g.lineTo(x + 4 * S, sy(-1));
+        g.closePath(); g.fill();
+        g.fillStyle = LS.rgba('#000', 0.25);
+        g.fillRect(x - 3.2 * S, sy(-9), 6.4 * S, 1.4 * S);
+      } else if (d.kind === 'lost') {
+        g.fillStyle = '#4a3a34';
+        LS.roundRect(g, x - 8 * S, sy(-16), 16 * S, 15 * S, 2 * S); g.fill();
+        g.strokeStyle = '#2a211d'; g.lineWidth = Math.max(1, 1.4 * S);
+        g.beginPath(); g.arc(x, sy(-16), 4 * S, Math.PI, 0); g.stroke();
+      } else if (d.kind === 'ticket' || d.kind === 'reserve') {
+        g.fillStyle = look.c;
+        g.save(); g.translate(x, sy(-64)); g.rotate(-0.16);
+        LS.roundRect(g, -7 * S, -5 * S, 14 * S, 10 * S, 1.4 * S); g.fill();
+        g.fillStyle = LS.rgba('#000', 0.35);
+        for (let i = 0; i < 3; i++) g.fillRect(-5 * S, (-2.6 + i * 2.2) * S, 10 * S, 0.9 * S);
+        g.restore();
+      }
+      /* the marker */
+      const by = sy(d.kind === 'heat' ? -104 : -30) - 14 * S + Math.sin(t * 2.6 + d.x) * 2.4 * S;
+      g.fillStyle = LS.rgba(look.c, 0.9);
+      g.beginPath();
+      g.moveTo(x, by + 8 * S); g.lineTo(x - 4.6 * S, by); g.lineTo(x + 4.6 * S, by);
+      g.closePath(); g.fill();
+      g.fillStyle = LS.rgba(look.c, 0.14);
+      g.beginPath(); g.arc(x, by + 2 * S, 11 * S, 0, 7); g.fill();
+    }
+  }
+
   /* --------------------------------------------------------- the marker */
   function marker(P) {
     const h = nearest();
@@ -949,13 +1171,26 @@ const WORLD = (function () {
 
   return {
     init, update, draw, setKey, walkTo, nearest, player, SEG, WORLD_W, HOT,
-    stationChange, seedPax,
+    stationChange, seedPax, laptop, DESK_X, LAPTOP_HOME, PITCH,
+    setDuties: list => { duties = list; },
+    getDuties: () => duties,
+    seatXs: () => {
+      const out = [];
+      SEG.filter(s => s.t === 'car').forEach(seg => {
+        for (let r = 0; r < SEAT_ROWS(seg); r++) out.push(seatX(seg, r));
+      });
+      return out;
+    },
     pax: () => pax,
     screenX: wx => sx(wx),
     hotAtScreen(px) {
       /* Which hotspot did they tap? Anything within a finger of it. */
       let best = null, bd = 34 * S;
       for (const h of HOT) { const d = Math.abs(sx(h.x) - px); if (d < bd) { bd = d; best = h; } }
+      for (const d of duties) {
+        const dd = Math.abs(sx(d.x) - px);
+        if (dd < bd) { bd = dd; best = { id: 'duty:' + d.id, x: d.x, label: d.label, verb: d.verb, duty: d }; }
+      }
       for (const p of pax) if (p.wants && p.state === 'seated') {
         const d = Math.abs(sx(p.x) - px);
         if (d < bd) { bd = d; best = { id: 'pax:' + p.id, x: p.x, label: 'Seat ' + p.seat, verb: 'See what they want', pax: p }; }
