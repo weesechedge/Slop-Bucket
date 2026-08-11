@@ -268,124 +268,170 @@
   /* ========================================================= interactions */
   function interact() {
     if (paused || busy) return;
-    if (WORLD.player.seated) { standUp(); return; }
-    const h = WORLD.nearest();
-    if (!h) return;
+    const L = WORLD.laptop;
     const st = state();
+    const h = WORLD.nearest();
 
-    if (h.duty) { doDuty(h.duty); return; }
-    if (h.id === 'desk') {
-      if (WORLD.laptop.carried) { openLaptop(false); return; }
-      if (Math.abs(WORLD.laptop.x - WORLD.LAPTOP_HOME) < 4) { openLaptop(true); return; }
-      caption('THE LAPTOP IS NOT HERE', 'You left it somewhere. It is where you left it.', 3600);
-      return;
+    /* Sat at the desk: E gets you up again. */
+    if (L.mode === 'desk') { closeLaptop(); return; }
+
+    /* Duties and passengers first — they are what is actually waiting. */
+    if (h && h.duty) { doDuty(h.duty); return; }
+    if (h && h.pax) { seeTo(h.pax); return; }
+
+    if (h) {
+      if (h.id === 'desk') { atDesk(); return; }
+      if (h.id.startsWith('door')) { doors(st, h); return; }
+      if (h.id === 'pa1' || h.id === 'pa2') { openPA(); return; }
+      if (h.id === 'buffet') { makeTea(h); return; }
+      if (h.id === 'window' || h.id === 'rest') { watch(h); return; }
+      if (h.id === 'log') { openRecord(); return; }
+      if (h.id === 'therm') { caption('THE HEATING', 'It is fine at the moment. It will not be later.', 3000); return; }
     }
-    /* Standing over the laptop wherever you put it down. */
-    if (!WORLD.laptop.carried && Math.abs(WORLD.laptop.x - WORLD.player.x) < 46) { openLaptop(false); return; }
-    if (WORLD.laptop.carried) { openLaptop(false); return; }
-    if (h.id.startsWith('door')) {
-      if (!st.atStop) { caption('THE TRAIN IS MOVING', 'The doors are interlocked. This is a good thing.', 3200); return; }
-      if (!S.doorsOpen) {
-        SFX.play('doorOpen');
-        doFor(6, 'Releasing the doors', () => {
-          S.doorsOpen = true; S.c.doors++;
-          log('work', 'Doors released at ' + st.station.name + ', platform ' + st.station.plat + '.');
-          WORLD.stationChange(st.i);
-        }, h.x);
-      } else {
-        SFX.play('doorClose');
-        doFor(6, 'Closing the doors', () => {
-          S.doorsOpen = false;
-          log('work', 'Doors closed and interlocked. Right away.');
-        }, h.x);
-      }
-      return;
+    /* Nothing else here: if the laptop is at your feet, that is the thing. */
+    if (!L.carried && Math.abs(L.x - WORLD.player.x) < 52) { openLaptop('desk'); return; }
+    if (L.carried) { toggleWork(); return; }
+  }
+
+  function atDesk() {
+    const L = WORLD.laptop;
+    /* Arriving at your own desk carrying it: put it down and sit, which is
+       what anybody would do and is also the fast way to work. */
+    if (L.carried) {
+      if (L.mode === 'mini') closeLaptop();
+      L.carried = false; L.x = WORLD.LAPTOP_HOME;
+      S.carry = false; S.laptopX = L.x;
+      log('', 'You put the laptop back on the table at 12A and sit down.');
+      openLaptop('desk'); return;
     }
-    if (h.id === 'pa1' || h.id === 'pa2') { openPA(); return; }
-    if (h.id === 'buffet') {
-      SFX.play('tea');
-      doFor(LS.rint(LS.rng(Date.now() & 0xffff), 100, 190), 'Making a cup of tea', () => {
-        S.c.teas++; J.addFocus(0.16);
-        log('', LS.pick(LS.rng(Date.now() & 0xffff), [
-          'You make a cup of tea. It is too hot to drink for nine minutes.',
-          'You make a cup of tea. It goes cold while you are answering a question about the buffet.',
-          'You make a cup of tea and drink all of it, which is rare.',
-          'You make a cup of tea. It is fine.'
-        ]));
+    /* Generous tolerance: "on the table at 12A" is a place, not a coordinate. */
+    if (Math.abs(L.x - WORLD.LAPTOP_HOME) < 52) { openLaptop('desk'); return; }
+    caption('THE LAPTOP IS NOT HERE', 'You left it in ' +
+      (WORLD.segAt(L.x).name || 'a vestibule') + '. It is still there.', 4200);
+  }
+
+  function doors(st, h) {
+    if (!st.atStop) { caption('THE TRAIN IS MOVING', 'The doors are interlocked. This is a good thing.', 3200); return; }
+    if (!S.doorsOpen) {
+      SFX.play('doorOpen');
+      doFor(6, 'Releasing the doors', () => {
+        S.doorsOpen = true; S.c.doors++;
+        log('work', 'Doors released at ' + st.station.name + ', platform ' + st.station.plat + '.');
+        WORLD.stationChange(st.i);
       }, h.x);
-      return;
-    }
-    if (h.id === 'window' || h.id === 'rest') {
-      const long = h.id === 'rest';
-      doFor(long ? 300 : 90, long ? 'Watching the country go past' : 'Looking out of the window', () => {
-        S.c.rests++; J.addFocus(long ? 0.42 : 0.12);
-        const bio = SERVICE.BIOMES[SERVICE.biome(state().km)];
-        caption(bio.toUpperCase(), long ? 'Five minutes. Nothing happened. It was enough.' : 'Nothing out there either.', 6000);
-        log('good', long ? 'Five minutes in the quiet car. ' + bio + '. Nothing happened.'
-                         : 'You looked out of the window. ' + bio + '.');
-      }, h.x);
-      return;
-    }
-    if (h.id === 'log') { openRecord(); return; }
-    if (h.pax) {
-      const p = h.pax;
-      doFor(LS.rint(LS.rng(Date.now() & 0xffff), 20, 50), 'Seat ' + p.seat, () => {
-        p.wants = 0; S.c.questions++;
-        const w = state();
-        const q = LS.pick(LS.rng(Date.now() & 0xffffff), [
-          'asks when you get in', 'asks if this is the right train', 'asks whether the buffet is open',
-          'asks if there is a quiet carriage', 'asks whether the wifi is working', 'asks nothing in the end'
-        ]);
-        log('', 'Seat ' + p.seat + ' ' + q + '. You say ' +
-          (w.next ? LS.durWords(w.toNextMs) + ' to ' + w.next.name : 'we are there') + '. They say “right”.');
+    } else {
+      SFX.play('doorClose');
+      doFor(6, 'Closing the doors', () => {
+        S.doorsOpen = false;
+        log('work', 'Doors closed and interlocked. Right away.');
       }, h.x);
     }
   }
 
-  /* Working at the tray table is the fast way. Working with the thing balanced
-     on one arm in a vestibule is the other way, and it is most of the game. */
-  function openLaptop(atDesk) {
-    WORLD.player.seated = true;
-    WORLD.laptop.open = true;
-    J.setSeated(true);
-    J.setSpeed(atDesk ? 1 : 1.7);
+  function makeTea(h) {
+    SFX.play('tea');
+    doFor(LS.rint(LS.rng(Date.now() & 0xffff), 100, 190), 'Making a cup of tea', () => {
+      S.c.teas++; J.addFocus(0.16);
+      log('', LS.pick(LS.rng(Date.now() & 0xffff), [
+        'You make a cup of tea. It is too hot to drink for nine minutes.',
+        'You make a cup of tea. It goes cold while you are answering a question about the buffet.',
+        'You make a cup of tea and drink all of it, which is rare.',
+        'You make a cup of tea. It is fine.'
+      ]));
+    }, h.x);
+  }
+
+  function watch(h) {
+    const long = h.id === 'rest';
+    doFor(long ? 300 : 90, long ? 'Watching the country go past' : 'Looking out of the window', () => {
+      S.c.rests++; J.addFocus(long ? 0.42 : 0.12);
+      const bio = SERVICE.BIOMES[SERVICE.biome(state().km)];
+      caption(bio.toUpperCase(), long ? 'Five minutes. Nothing happened. It was enough.' : 'Nothing out there either.', 6000);
+      log('good', long ? 'Five minutes in the quiet car. ' + bio + '. Nothing happened.'
+                       : 'You looked out of the window. ' + bio + '.');
+    }, h.x);
+  }
+
+  function seeTo(p) {
+    doFor(LS.rint(LS.rng(Date.now() & 0xffff), 20, 50), 'Seat ' + p.seat, () => {
+      p.wants = 0; S.c.questions++;
+      const w = state();
+      const q = LS.pick(LS.rng(Date.now() & 0xffffff), [
+        'asks when you get in', 'asks if this is the right train', 'asks whether the buffet is open',
+        'asks if there is a quiet carriage', 'asks whether the wifi is working', 'asks nothing in the end'
+      ]);
+      log('', 'Seat ' + p.seat + ' ' + q + '. You say ' +
+        (w.next ? LS.durWords(w.toNextMs) + ' to ' + w.next.name : 'we are there') + '. They say “right”.');
+    }, p.x);
+  }
+
+  /* ------------------------------------------------------- the work panel
+     Two ways to have the laptop open. At the tray table it takes the whole
+     screen and runs at full speed and you cannot go anywhere. Under one arm
+     it is a panel at the side, everything else still works, and every task
+     takes about two thirds longer. */
+  function openLaptop(mode) {
+    const L = WORLD.laptop;
+    L.mode = mode;
+    WORLD.player.seated = mode === 'desk';
+    J.setMode(mode);
     J.markDirty();
-    $('#lapWrap').classList.add('on');
-    $('#laptop').classList.toggle('carried', !atDesk);
+    const w = $('#lapWrap');
+    w.classList.toggle('on', true);
+    w.classList.toggle('mini', mode === 'mini');
+    $('#laptop').classList.toggle('carried', mode === 'mini');
     J.render();
     SFX.play('thunk');
-    log('', atDesk ? 'Sat down at 12A. The laptop is awake.'
-                   : 'You open the laptop where you are standing. It is not a desk.');
+    log('', mode === 'desk' ? 'Sat down at 12A. The laptop is awake.'
+                            : 'You open the laptop one-handed and keep walking. It is not a desk.');
   }
-  function standUp() {
-    if (!WORLD.player.seated) return;
+  function closeLaptop() {
+    const L = WORLD.laptop;
+    if (L.mode === 'closed') return;
+    L.mode = 'closed';
     WORLD.player.seated = false;
-    WORLD.laptop.open = false;
-    J.setSeated(false);
+    J.setMode('closed');
     SFX.setTyping(false);
-    $('#lapWrap').classList.remove('on');
+    $('#lapWrap').classList.remove('on', 'mini');
   }
-  /* Pick it up, put it down. The whole trade-off in one key. */
+  const standUp = closeLaptop;
+
+  /* W / the WORK button: open the panel in whichever mode applies. */
+  function toggleWork() {
+    if (paused) return;
+    const L = WORLD.laptop;
+    if (L.mode !== 'closed') { closeLaptop(); return; }
+    if (L.carried) { openLaptop('mini'); return; }
+    if (Math.abs(L.x - WORLD.player.x) < 52) { openLaptop('desk'); return; }
+    caption('THE LAPTOP IS NOT HERE', 'It is in ' + (WORLD.segAt(L.x).name || 'a vestibule') +
+      '. Go and get it, or carry it next time.', 4200);
+  }
+
+  /* F / the LAPTOP button: pick it up, put it down. */
   function toggleCarry() {
-    if (paused || WORLD.player.seated) return;
+    if (paused) return;
     const L = WORLD.laptop;
     if (L.carried) {
+      if (L.mode === 'mini') closeLaptop();
       L.carried = false;
       L.x = Math.round(WORLD.player.x);
+      const home = Math.abs(L.x - WORLD.LAPTOP_HOME) < 52;
+      if (home) L.x = WORLD.LAPTOP_HOME;
       S.carry = false; S.laptopX = L.x;
       SFX.play('thunk');
-      const home = Math.abs(L.x - WORLD.LAPTOP_HOME) < 46;
-      if (home) { L.x = WORLD.LAPTOP_HOME; S.laptopX = L.x; log('', 'Laptop back on the tray table at 12A.'); }
-      else log('', 'You put the laptop down in ' + (WORLD.segAt(L.x).name || 'the vestibule') + '. It is fine there. Probably.');
+      log('', home ? 'Laptop back on the tray table at 12A.'
+                   : 'You put the laptop down in ' + (WORLD.segAt(L.x).name || 'the vestibule') +
+                     '. It is fine there. Probably.');
       return;
     }
-    if (Math.abs(L.x - WORLD.player.x) > 56) {
-      caption('THE LAPTOP IS ELSEWHERE', 'It is where you left it, which is not here.', 3200);
+    if (Math.abs(L.x - WORLD.player.x) > 60) {
+      caption('THE LAPTOP IS ELSEWHERE', 'It is in ' + (WORLD.segAt(L.x).name || 'a vestibule') + ', which is not here.', 3600);
       return;
     }
+    if (L.mode === 'desk') { closeLaptop(); }
     L.carried = true; S.carry = true;
     SFX.play('thunk');
-    log('', 'You tuck the laptop under your arm. You can work anywhere now, slowly.');
+    log('', 'You tuck the laptop under your arm. You can work anywhere now, and slower.');
   }
 
   /* ------------------------------------------------------------ the PA */
@@ -577,6 +623,7 @@
     if (keymap[e.key]) { WORLD.setKey(keymap[e.key], true); WORLD.player.target = null; e.preventDefault(); }
     if (e.key === 'e' || e.key === 'E' || e.key === ' ' || e.key === 'Enter') { interact(); e.preventDefault(); }
     if (e.key === 'f' || e.key === 'F') { toggleCarry(); e.preventDefault(); }
+    if (e.key === 'w' || e.key === 'W') { toggleWork(); e.preventDefault(); }
     if (e.key === 'Escape') standUp();
   });
   addEventListener('keyup', e => { if (keymap[e.key]) WORLD.setKey(keymap[e.key], false); });
@@ -603,6 +650,7 @@
   }
   held($('#useBtn'), interact);
   held($('#takeBtn'), toggleCarry);
+  held($('#workBtn'), toggleWork);
   held($('#leftBtn'), () => WORLD.setKey('left', true), () => WORLD.setKey('left', false));
   held($('#rightBtn'), () => WORLD.setKey('right', true), () => WORLD.setKey('right', false));
   stage.addEventListener('contextmenu', e => e.preventDefault());
@@ -670,21 +718,32 @@
       return;
     }
     p.classList.remove('busy');
-    if (WORLD.player.seated) {
+    const L = WORLD.laptop;
+    if (L.mode === 'desk') {
       p.classList.add('on');
-      p.innerHTML = '<span class="pl">Seat 12A · <kbd>Esc</kbd> to stand up</span>';
+      p.innerHTML = '<span class="pl">Seat 12A · working at full speed</span><kbd>Esc</kbd>' +
+        '<span class="ph">get up</span>';
       return;
     }
-    const L = WORLD.laptop;
-    const overLaptop = !L.carried && Math.abs(L.x - WORLD.player.x) < 46;
+    const overLaptop = !L.carried && Math.abs(L.x - WORLD.player.x) < 52;
     const h = WORLD.nearest();
+
+    /* The right-hand hints: what W does from here, and what F does. */
+    const workHint = L.mode === 'mini'
+      ? '<kbd>W</kbd><span class="ph">close panel</span>'
+      : (L.carried || overLaptop)
+        ? '<kbd>W</kbd><span class="ph">' + (L.carried ? 'work while walking' : 'sit and work') + '</span>'
+        : '';
     const carryHint = L.carried ? '<kbd>F</kbd><span class="ph">put it down</span>'
       : overLaptop ? '<kbd>F</kbd><span class="ph">pick it up</span>' : '';
+
     if (!h) {
-      if (!carryHint) { p.classList.remove('on'); return; }
+      if (!workHint && !carryHint) { p.classList.remove('on'); return; }
       p.classList.add('on');
       p.innerHTML = '<span class="pl"><em>The laptop</em> ' +
-        (L.carried ? 'is under your arm — work is slower' : 'is here') + '</span>' + carryHint;
+        (L.mode === 'mini' ? 'open on your arm · slower'
+         : L.carried ? 'under your arm' : 'is here') +
+        '</span>' + workHint + carryHint;
       return;
     }
     let verb = h.verb;
@@ -692,13 +751,13 @@
     if ((h.id === 'pa1' || h.id === 'pa2') && st.next && st.toNextMs > 420000 && !st.atStop)
       verb = 'Make an announcement anyway';
     if (h.id === 'desk') {
-      verb = L.carried ? 'Open the laptop here'
-           : Math.abs(L.x - WORLD.LAPTOP_HOME) < 4 ? 'Sit down and work' : 'The laptop is not here';
-    } else if (overLaptop && !h.duty && !h.pax) {
-      verb = 'Open the laptop here';
+      verb = L.carried ? 'Put it down and sit'
+           : Math.abs(L.x - WORLD.LAPTOP_HOME) < 52 ? 'Sit down and work'
+           : 'The laptop is not here';
     }
     p.classList.add('on');
-    p.innerHTML = '<span class="pl"><em>' + LS.esc(h.label) + '</em> ' + LS.esc(verb) + '</span><kbd>E</kbd>' + carryHint;
+    p.innerHTML = '<span class="pl"><em>' + LS.esc(h.label) + '</em> ' + LS.esc(verb) + '</span>' +
+                  '<kbd>E</kbd>' + workHint + carryHint;
   }
 
   /* =============================================================== start */
@@ -726,8 +785,13 @@
     JOB.onStand = standUp;
     WORLD.init(stage);
     JOB.mountUI($('#laptop'));
+    /* Saves from before the tray table moved put the laptop 26 units from
+       where 12A now is; anything within reach of the table counts as on it. */
     WORLD.laptop.x = S.laptopX == null ? WORLD.LAPTOP_HOME : S.laptopX;
+    if (Math.abs(WORLD.laptop.x - WORLD.LAPTOP_HOME) < 52) WORLD.laptop.x = WORLD.LAPTOP_HOME;
     WORLD.laptop.carried = !!S.carry;
+    WORLD.laptop.mode = 'closed';
+    S.laptopX = WORLD.laptop.x;
     /* Duties are wall-clock things; anything that expired while you were gone
        has already had its consequence, so just drop them. */
     S.duties = (S.duties || []).filter(d => d.until > Date.now());
@@ -793,17 +857,19 @@
           log('sys', 'Out of the tunnel. Teams reconnects and asks you to sign in again.');
         }
       }
-      JOB.tick(elapsed(), { seated: WORLD.player.seated, dtMs });
+      const lmode = WORLD.laptop.mode;
+      JOB.tick(elapsed(), { mode: lmode, dtMs });
       dutyStep(st);
-      if (WORLD.player.seated) S.c.deskMs += dtMs; else if (Math.abs(WORLD.player.vx) > 1) S.c.walkMs += dtMs;
+      if (lmode === 'desk') S.c.deskMs += dtMs;
+      if (Math.abs(WORLD.player.vx) > 1) S.c.walkMs += dtMs;
       if (WORLD.laptop.carried) S.c.carriedMs += dtMs;
       S.carry = WORLD.laptop.carried; S.laptopX = WORLD.laptop.x;
 
       /* sound: the bed follows the train, the rest follows the job */
       const js = J.state();
-      SFX.setScene({ speed: st.speed, tunnel: st.tunnelDepth, laptopOpen: WORLD.player.seated });
+      SFX.setScene({ speed: st.speed, tunnel: st.tunnelDepth, laptopOpen: lmode === 'desk' });
       SFX.tick(dtMs);
-      SFX.setTyping(!!js.busy && WORLD.player.seated);
+      SFX.setTyping(!!js.busy && lmode !== 'closed');
       SFX.ring(!!js.call);
       const unread = js.mail.filter(m => !m.read).length;
       if (lastUnread >= 0 && unread > lastUnread) SFX.play('mail');
@@ -842,8 +908,9 @@
 
     if (now > capUntil) $('#caption').classList.remove('on');
     if (now > alertUntil) $('#alert').classList.remove('on');
-    if (WORLD.player.seated && JOB.dirty()) JOB.render();
-    else if (WORLD.player.seated && now % 1000 < 34) JOB.render();
+    const panelOpen = WORLD.laptop.mode !== 'closed';
+    if (panelOpen && JOB.dirty()) JOB.render();
+    else if (panelOpen && now % 1000 < 34) JOB.render();
   }
 
   boot();

@@ -107,7 +107,7 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
 #prompt.on{opacity:1;transform:translate(-50%,0)}
 #prompt .pl{font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #prompt .pl em{font-style:normal;color:var(--amber);margin-right:6px}
-#prompt .ph{font-size:10px;color:var(--faint);margin-left:-4px}
+#prompt .ph{font-size:10px;color:var(--faint);margin-left:-4px;white-space:nowrap}
 #prompt kbd{flex:0 0 auto}
 #prompt.busy{border-color:#6a5330;min-width:min(340px,86vw)}
 #prompt .pbar{flex:1;height:3px;background:#0b0e13;border-radius:2px;overflow:hidden;min-width:60px}
@@ -168,9 +168,9 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
   /* The stack, from the bottom: ticker, line map, thumbs, prompt, lower third.
      Nothing may sit on top of anything else, least of all on a thumb. */
   .pad{bottom:96px} .pad button{width:48px;height:48px;font-size:15px}
-  .pad.r{flex-direction:row;align-items:center;gap:8px}
-  .pad.r button{width:auto;padding:0 13px;height:48px;border-radius:24px;font-size:10px}
-  .pad.r #useBtn{height:48px;padding:0 16px;border-radius:24px;font-size:11px}
+  .pad.r{flex-direction:row;align-items:center;gap:6px}
+  .pad.r button{width:auto;padding:0 10px;height:48px;border-radius:24px;font-size:9.5px;letter-spacing:.08em}
+  .pad.r #useBtn{height:48px;padding:0 13px;border-radius:24px;font-size:10.5px}
   #prompt{bottom:152px;padding:7px 12px;max-width:94vw}
   #prompt .pl{font-size:10.5px}
   #prompt .ph{display:none}
@@ -188,10 +188,30 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
   padding:26px 16px;background:rgba(3,4,7,.62);backdrop-filter:blur(3px);
   opacity:0;pointer-events:none;transition:opacity .26s}
 #lapWrap.on{opacity:1;pointer-events:auto}
-/* Working with it under one arm: narrower, tilted, and it says so. */
-#laptop.carried{width:min(680px,92vw);transform:rotate(-.5deg)}
-#lapWrap.on #laptop.carried{transform:rotate(-.5deg)}
-#laptop.carried .lap-org::after{content:' · ON YOUR ARM · SLOWER';color:var(--amber)}
+/* ---------------------------------------------------------------- mini
+   Under one arm: a panel docked at the side. The wrapper stops catching
+   clicks so the train, the walk buttons and every hotspot stay live. */
+#lapWrap.mini{background:none;backdrop-filter:none;pointer-events:none;
+  padding:0;display:block}
+#lapWrap.mini #laptop{
+  pointer-events:auto;position:fixed;left:16px;top:50%;transform:translateY(-50%);
+  width:min(430px,40vw);height:min(500px,58vh);
+  box-shadow:0 20px 50px rgba(0,0,0,.62),0 0 0 5px rgba(20,23,29,.85),0 0 0 6px #2c313c;
+  border-color:#4a3a20}
+#lapWrap.on.mini #laptop{transform:translateY(-50%)}
+#lapWrap.mini .lap-org{font-size:8px}
+#lapWrap.mini .lap-org::after{content:' · ON YOUR ARM';color:var(--amber)}
+#lapWrap.mini .lap-tab{padding:7px 9px;font-size:10px}
+#lapWrap.mini .lap-view{padding:10px 11px;font-size:11px}
+#lapWrap.mini .lap-head h3{font-size:14px}
+#lapWrap.mini .lap-bar{padding:6px 9px}
+#lapWrap.mini .lap-bar .bw{display:none}
+#lapWrap.mini .lap-close b{display:none}
+#lapWrap.mini .byo{display:none}
+/* A hand-held thing is never quite straight — but it must not drift, or
+   every button on it becomes a moving target. Static tilt only. */
+#lapWrap.mini #laptop{transform:translateY(-50%) rotate(-.4deg)}
+#lapWrap.on.mini #laptop{transform:translateY(-50%) rotate(-.4deg)}
 #laptop{width:min(940px,96vw);height:min(660px,86vh);display:flex;flex-direction:column;
   background:#12151b;border:1px solid #2c313c;border-radius:12px;overflow:hidden;
   box-shadow:0 36px 90px rgba(0,0,0,.72),0 0 0 8px rgba(20,23,29,.85),0 0 0 9px #2c313c;
@@ -226,6 +246,7 @@ kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);border-
 .lap-close{background:#1b1f27;border:1px solid #2c313c;border-radius:6px;padding:5px 10px;
   font-size:10px;color:var(--muted)}
 .lap-close:hover{border-color:var(--amber);color:var(--amber2)}
+.lap-close i{font-style:normal}
 .lap-close b{color:var(--faint);font-weight:400}
 
 .lap-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding-bottom:10px;
@@ -384,3 +405,13 @@ textarea:focus{outline:none;border-color:var(--amber)}
 #boot .keys kbd{margin:0 2px}
 #boot .press{font-size:10px;letter-spacing:.28em;color:var(--amber2);margin-top:24px;animation:blink 2.2s infinite}
 @keyframes blink{0%,55%{opacity:1}75%{opacity:.25}100%{opacity:1}}
+
+/* On a phone the carried panel is a sheet across the top, clear of the thumbs.
+   This has to come after the desktop mini rules or it loses to them. */
+@media (max-width:720px){
+  #lapWrap.mini #laptop,
+  #lapWrap.on.mini #laptop{left:8px;right:8px;top:106px;width:auto;
+    height:min(300px,38vh);transform:rotate(-.3deg)}
+  #lapWrap.mini .lap-view{font-size:10.5px;padding:9px 10px}
+  #lapWrap.mini .lap-tab{padding:6px 8px;font-size:9.5px}
+}

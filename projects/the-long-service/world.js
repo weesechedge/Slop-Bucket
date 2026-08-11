@@ -112,7 +112,9 @@ const WORLD = (function () {
   const player = { x: DESK_X, vx: 0, face: 1, phase: 0, seated: false, target: null };
   /* The laptop is a thing with a position, not a menu. It starts on the tray
      table at 12A and can be picked up and put down anywhere on the train. */
-  const laptop = { x: LAPTOP_HOME, carried: false, open: false };
+  /* mode: 'closed' | 'desk' (sat down, full screen) | 'mini' (under one arm,
+     a panel at the side, and you can still walk about). */
+  const laptop = { x: LAPTOP_HOME, carried: false, mode: 'closed' };
   let duties = [];
   let jolt = 0, joltV = 0, lastJoltKm = 0;
   let pax = [];
@@ -275,15 +277,17 @@ const WORLD = (function () {
     if (player.seated) return HOT.find(h => h.id === 'desk');
     let best = null, bd = REACH;
     for (const h of HOT) { const d = Math.abs(h.x - player.x); if (d < bd) { bd = d; best = h; } }
-    /* A passenger with a hand up, or a job lying on the floor, outranks the
-       furniture — those are the things that are actually waiting for you. */
+    /* Nearest wins, across furniture, jobs and people alike. Ranking one
+       category above another meant a passenger three seats away could stop
+       you sitting down at a desk you were standing on top of. */
     for (const d of duties) {
       const dd = Math.abs(d.x - player.x);
-      if (dd < REACH) return { id: 'duty:' + d.id, x: d.x, label: d.label, verb: d.verb, duty: d };
+      if (dd < bd) { bd = dd; best = { id: 'duty:' + d.id, x: d.x, label: d.label, verb: d.verb, duty: d }; }
     }
     for (const p of pax) if (p.wants && p.state === 'seated') {
       const d = Math.abs(p.x - player.x);
-      if (d < REACH) return { id: 'pax:' + p.id, x: p.x, label: 'Seat ' + p.seat, verb: 'See what they want', icon: 'ask', pax: p };
+      if (d < bd) { bd = d; best = { id: 'pax:' + p.id, x: p.x, label: 'Seat ' + p.seat,
+                                     verb: 'See what they want', icon: 'ask', pax: p }; }
     }
     return best;
   }

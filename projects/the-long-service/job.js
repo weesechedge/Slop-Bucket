@@ -332,7 +332,9 @@ const JOB = (function () {
     lastSeen: 0
   };
 
-  let ST, S, emit = () => {}, alertFn = () => {}, root = null, seated = false;
+  let ST, S, emit = () => {}, alertFn = () => {}, root = null;
+  /* 'closed' | 'desk' | 'mini' — see WORLD.laptop. */
+  let mode = 'closed';
   /* Working with the laptop under one arm is slower than working at a table. */
   let speedMul = 1;
   let plan = [], elapsedSvc = 0, dirty = true, tab = 'mail', openMailId = null;
@@ -618,21 +620,27 @@ const JOB = (function () {
   /* ================================================================= tick */
   function tick(svcElapsed, ctx) {
     elapsedSvc = svcElapsed;
-    seated = !!ctx.seated;
+    /* setMode is the only writer of `mode`; the tick just reads it, so a mode
+       change and its side effects can never be half-applied. */
+    const open = mode !== 'closed';
 
     /* Overnight mail is at t = 0 and lands before the day starts: it was in
        the inbox when you boarded, which is what a commute is for. */
     dispatch(started() ? Math.min(dayMs(), DAY_MS) : 0, false);
 
+    /* Closing the laptop loses the work. Walking about with it open does not
+       — that is what carrying it is for. */
     if (S.busy) {
-      if (!seated) abandon('you got up');
+      if (!open) abandon('you closed the laptop');
       else if (Date.now() >= S.busy.to) finishTask();
     }
-    if (S.inMeeting && !seated) leaveMeeting('you got up; your camera stayed on');
+    if (S.inMeeting && !open) leaveMeeting('you closed the laptop; your camera stayed on');
 
     /* The learning module must remain in focus. Standing up is not in focus. */
+    /* Six minutes of mandatory learning on a screen balanced on one forearm
+       is not "remaining in focus", and the module knows it. */
     if (S.train.running) {
-      if (!seated || tab !== 'train') {
+      if (mode !== 'desk' || tab !== 'train') {
         S.train.running = false;
         emit('bad', 'LEARNING PAUSED · the module must remain in focus');
       } else {
@@ -654,8 +662,8 @@ const JOB = (function () {
 
     miniTick(); meetingTick();
 
-    /* Focus erodes faster at the desk than anywhere else on the train. */
-    const drain = seated ? 0.000075 : 0.00002;
+    /* Doing two jobs at once costs the most; doing none costs the least. */
+    const drain = mode === 'mini' ? 0.00011 : mode === 'desk' ? 0.000075 : 0.00002;
     S.focus = LS.clamp(S.focus - drain * (ctx.dtMs || 250) / 250, 0.15, 1);
 
     if (S.mini.live && !S.mini.cleared && officeMin() > 930 && Date.now() - (S.mini.lastNudge || 0) > 660000) {
@@ -664,12 +672,19 @@ const JOB = (function () {
     }
   }
 
-  function setSeated(v) {
-    if (v === seated) return;
-    seated = v;
-    if (!v) { if (S.busy) abandon('you got up'); if (S.inMeeting) leaveMeeting('you got up'); }
+  function setMode(v) {
+    if (v === mode) return;
+    const wasOpen = mode !== 'closed';
+    mode = v;
+    speedMul = v === 'desk' ? 1 : 1.7;
+    if (wasOpen && v === 'closed') {
+      if (S.busy) abandon('you closed the laptop');
+      if (S.inMeeting) leaveMeeting('you closed the laptop');
+      S.train.running = false;
+    }
     dirty = true;
   }
+  const getMode = () => mode;
   const addFocus = n => { S.focus = LS.clamp(S.focus + n, 0.15, 1); dirty = true; };
 
   /* ================================================================== UI
@@ -692,9 +707,14 @@ const JOB = (function () {
       '<div class="lap-tabs" id="lapTabs"></div>' +
       '<div class="lap-view" id="lapView"></div>' +
       '<div class="lap-bar"><span id="lapBusy"></span>' +
-      '<button class="lap-close" data-j="stand">Stand up &nbsp;<b>Esc</b></button></div>';
+      '<button class="lap-close" data-j="stand"><i></i>&nbsp;<b>Esc</b></button></div>';
     root.addEventListener('click', onClick);
-    root.addEventListener('keydown', e => e.stopPropagation());
+    /* Only a real text field gets to keep the keystroke; everything else has
+       to let the arrow keys through so you can keep walking. */
+    root.addEventListener('keydown', e => {
+      const t2 = e.target.tagName;
+      if (t2 === 'TEXTAREA' || t2 === 'INPUT') e.stopPropagation();
+    });
     dirty = true;
   }
 
@@ -780,7 +800,10 @@ const JOB = (function () {
   function flash(msg) { emit('bad', msg); }
 
   function render() {
-    if (!root || !root.offsetParent) return;
+    /* offsetParent is null for anything position:fixed, which the carried
+       panel is — so the panel never repainted and showed whatever the last
+       desk session had left in it. Ask the mode instead. */
+    if (!root || mode === 'closed') return;
     const unread = S.mail.filter(m => !m.read).length + S.unreadOlder;
     const qs = questions();
     const badge = {
@@ -806,6 +829,7 @@ const JOB = (function () {
     v.scrollTop = keep;
 
     LS.$('#lapClock', root).textContent = LS.clock(officeMin());
+    LS.$('.lap-close i', root).textContent = mode === 'desk' ? 'Stand up' : 'Close';
     LS.$('#lapNet', root).textContent = JOB.net === false ? 'No connection' : 'Connected';
     const bb = LS.$('#lapBusy', root);
     if (S.busy) {
@@ -982,6 +1006,7 @@ const JOB = (function () {
     if (S.inMeeting) S.inMeeting = null;
     if (S.call) S.call = null;
     S.train.running = false;
+    mode = 'closed';
   }
   function reset() { ST.wipe(); }
 
@@ -1004,8 +1029,7 @@ const JOB = (function () {
   }
 
   return {
-    init, catchUp, tick, mountUI, render, setSeated, addFocus, reset, disrupt, inject,
-    setSpeed: v => { speedMul = v; },
+    init, catchUp, tick, mountUI, render, setMode, getMode, addFocus, reset, disrupt, inject,
     joinMeeting, liveMeeting, questions,
     state: () => S,
     dirty: () => { const d = dirty; dirty = false; return d; },
