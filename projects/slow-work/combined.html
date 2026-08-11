@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Combined Service — the APS day job, conducted from the train</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><a href="index.html" style="color:#e0903f;text-decoration:none;font-weight:600">Slow Work</a><span style="color:#3a4150;margin:0 4px">&#8212;</span><a href="aps-day.html" style="color:#9aa0ab;text-decoration:none">A Day in the APS</a> <span style="color:#3a4150">&#183;</span> <a href="slow-train.html" style="color:#9aa0ab;text-decoration:none">The Long Service</a> <span style="color:#3a4150">&#183;</span> <span style="color:#e9e7e1;font-weight:600">The Combined Service</span></nav>
+
+<div class="wrap">
+
+  <div id="prompt"></div>
+
+  <header class="top">
+    <div class="kicker">Slow Work &#183; Mix and Match &#183; both clocks at once</div>
+    <h1>The Combined Service<span class="paren">you are the conductor of the slow train, and you are also doing your actual job on the tray table</span></h1>
+    <p class="sub">He said they were two different games. He also said they could be one, and that you should let people
+      choose. So: you are working the <b>Nordkapp&ndash;Lindesnes</b> service as conductor, and you have brought the
+      department with you. Both clocks run at once, in real time. The ministerial is due to the Office at <b>16:00</b>.
+      The train gets in at <b>Lindesnes</b>, which is a long way after that.</p>
+    <p class="sub">The two interfere, as they would. <b>Tunnels drop the call</b> — and there are a lot of tunnels between
+      here and Trondheim. The <b>announcement</b> has to go out about five minutes before each stop, whatever else you are
+      in the middle of. And you cannot take a meeting off mute in the <b>quiet car</b>.</p>
+  </header>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Where you are</h2>
+    <p class="cap">the two jobs, currently</p>
+    <div class="rows" id="cbRows"></div>
+    <div class="chips" id="cbChips"></div>
+  </div>
+
+  <div id="train" style="margin-bottom:20px"></div>
+  <div id="aps"></div>
+
+  <footer>
+    The Combined Service keeps its own run and its own career, separate from the two single pages &#8212;
+    so starting here does not put you halfway down Norway on the other one.
+    &#183; <a href="index.html">Slow Work</a> &#183; <a href="../../">Back to the Slop-Bucket</a>
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script src="core.js"></script>
+<script src="aps.js"></script>
+<script src="train.js"></script>
+<script>
+"use strict";
+SW.promptBar('#prompt');
+
+/* The combined run is its own save on both sides, so playing it does not move
+   you along either of the single-page games. */
+const train = TRAIN.mount({ root: '#train', key: 'slow-work-combined-train-v1', compact: true });
+const aps   = APS.mount({ root: '#aps',   key: 'slow-work-combined-aps-v1' });
+
+let lastTunnelErr = 0, wasInTunnel = false, connected = true;
+let announceWindow = null, missed = 0, made = 0, quietNag = 0;
+
+function interference() {
+  if (!train || !aps) return;
+
+  /* ---- tunnels ---- */
+  const tun = train.inTunnel();
+  if (tun && connected)  { connected = false; aps.setConnected(false); }
+  if (!tun && !connected) { connected = true; aps.setConnected(true);
+    aps.log('sys', 'Out of the tunnel. Teams reconnects and asks you to sign in again.'); }
+  if (tun) {
+    if (!wasInTunnel) {
+      wasInTunnel = true;
+      aps.forceError('Teams', 'Your network connection was lost. We’ll try to reconnect you.', 'CAA20003');
+      if (aps.inMeeting()) aps.log('bad', 'You dropped out of the meeting. Nobody notices for six minutes.');
+      aps.interrupt('The train went into a tunnel.');
+    } else if (Date.now() - lastTunnelErr > 30000) {
+      lastTunnelErr = Date.now();
+      aps.forceError('Teams', 'Still trying to reconnect. Check your connection.', 'caa5004b');
+    }
+  } else wasInTunnel = false;
+
+  /* ---- the announcement is yours, whatever else is happening ---- */
+  const next = train.nextStop();
+  const ms = train.msToNextStop();
+  const st = train.state();
+  if (next && ms > 0 && ms < 300000) {
+    if (!announceWindow || announceWindow.name !== next.name) {
+      announceWindow = { name: next.name, base: st.c.announcements };
+      aps.log('acc', 'Five minutes to ' + next.name + '. The announcement is yours to make.');
+      SW.toast('Five minutes to ' + next.name + '. Make the announcement.');
+      if (aps.inMeeting()) aps.log('', 'You are in a meeting. The announcement does not care.');
+    }
+  } else if (announceWindow && (!next || next.name !== announceWindow.name || ms === 0)) {
+    if (st.c.announcements > announceWindow.base) { made++; }
+    else { missed++; aps.log('bad', 'No announcement was made for ' + announceWindow.name + '. Nobody complains.'); }
+    announceWindow = null;
+  }
+
+  /* ---- the quiet car ---- */
+  if (train.inQuietCar() && aps.inMeeting() && Date.now() - quietNag > 120000) {
+    quietNag = Date.now();
+    aps.forceError('Quiet Car', 'You are in the quiet car. You cannot take this off mute. A passenger has turned around.', '');
+  }
+
+  render();
+}
+
+function render() {
+  const w = train.where();
+  const arriveAt = new Date(train.state().start + TRAIN.TOTAL_MS);
+  SW.$('#cbRows').innerHTML = [
+    ['Connection', connected ? 'Connected' : 'In a tunnel — no connection', connected ? 'good' : 'bad'],
+    ['You are in', w.atStop ? w.station.name + ' (stationary)' : Math.round(w.speed) + ' km/h, ' + Math.round(w.km) + ' km down the line', ''],
+    ['Carriage', ['Loco', 'Car A', 'Car B', 'Quiet Car', 'Buffet', 'Car D', 'Guard’s Van'][train.carriage()], train.inQuietCar() ? 'acc' : ''],
+    ['Announcements', made + ' made · ' + missed + ' missed', missed > made ? 'bad' : ''],
+    ['The QTB is due', '16:00, to the Office', 'acc'],
+    ['The train gets in', arriveAt.toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' — well after that', 'dim']
+  ].map(r => '<div class="r"><span class="k">' + r[0] + '</span><span class="v ' + r[2] + '">' + SW.esc(r[1]) + '</span></div>').join('');
+
+  SW.$('#cbChips').innerHTML = [
+    ['Tunnels drop the call', !connected],
+    ['Announcements interrupt meetings', !!announceWindow],
+    ['No unmuting in the quiet car', train.inQuietCar()],
+    ['Both clocks at 1×', true]
+  ].map(c => '<span class="chip' + (c[1] ? ' on' : '') + '">' + c[0] + '</span>').join('');
+}
+
+setInterval(interference, 1000);
+interference();
+</script>
+</body>
+</html>
