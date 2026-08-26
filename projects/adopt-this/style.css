@@ -60,7 +60,7 @@ body{
   background-attachment:fixed;
   overflow:hidden;
 }
-button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:rgba(255,201,60,.35);touch-action:manipulation}
 a{color:#0F7C8F}
 
 /* ---------- app shell ---------- */
@@ -200,7 +200,7 @@ p.vsub{margin:0 0 14px;color:var(--ink2);font-size:13px;max-width:70ch;line-heig
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .fe .fh{display:flex;gap:8px;align-items:baseline;margin-bottom:3px;flex-wrap:wrap}
 .fe .fh b{font-size:12.5px}
-.fe .fh time{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.fe .fh time{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:auto}
 .fe .fh .role{font-family:var(--mono);font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px}
 .fe p{margin:0 0 6px;font-size:13.5px;line-height:1.55}
 .fe p:last-child{margin-bottom:0}
@@ -306,6 +306,17 @@ p.vsub{margin:0 0 14px;color:var(--ink2);font-size:13px;max-width:70ch;line-heig
   animation:up2 .26s cubic-bezier(.2,.9,.3,1);
 }
 @keyframes up2{from{transform:translateY(20px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.modal-in{position:relative}
+.mx{
+  position:absolute;top:10px;right:10px;z-index:3;border:none;background:#2B2320;color:#FFF3D6;
+  width:38px;height:38px;border-radius:50%;font-size:22px;line-height:1;display:grid;place-items:center;
+  box-shadow:0 3px 10px -3px rgba(43,35,32,.5);
+}
+.modal-in:has(.mx) h3{padding-right:44px}
+.modal-in:has(.mx) .mk{padding-right:44px}
+.modal.locked .modal-in{cursor:default}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px;padding:0 2px}
+.tblwrap .regtable{min-width:560px}
 .modal-in h3{font-family:var(--disp);font-size:21px;font-weight:600;margin:0 0 4px}
 .modal-in .mk{font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);margin:0 0 8px}
 .modal-in p{font-size:13.5px;line-height:1.6;margin:0 0 10px;max-width:72ch}
@@ -482,6 +493,23 @@ p.vsub{margin:0 0 14px;color:var(--ink2);font-size:13px;max-width:70ch;line-heig
 }
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ============================================================ NOW BAR
+   Phone only. The calendar sits below the day feed on a narrow screen, so the
+   hour you are standing in has to be reachable from anywhere on the page. */
+#nowbar{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:110;
+  align-items:center;gap:9px;padding:11px 14px calc(11px + env(safe-area-inset-bottom));
+  background:#2B2320;color:#FFF3D6;border:none;border-top:4px solid var(--c,var(--sun));
+  text-align:left;box-shadow:0 -8px 26px -10px rgba(43,35,32,.8);
+}
+#nowbar.on{display:flex}
+#nowbar .nt{font-family:var(--mono);font-weight:700;font-size:15px;color:var(--c,var(--sun));flex:0 0 auto}
+#nowbar .nl{flex:1 1 auto;font-size:12.5px;font-weight:600;line-height:1.25;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;color:#F5EBD6}
+#nowbar .ng{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:1px;flex:0 0 auto;
+  background:var(--sun);color:#2B2320;padding:6px 11px;border-radius:8px}
+#nowbar:active{filter:brightness(1.15)}
+
 /* ============================================================ BOOT */
 #boot{
   position:fixed;inset:37px 0 0 0;z-index:300;display:flex;align-items:center;justify-content:center;
@@ -561,12 +589,107 @@ p.vsub{margin:0 0 14px;color:var(--ink2);font-size:13px;max-width:70ch;line-heig
 }
 @media (max-width:900px){
   body{overflow:auto}
+  body.hasbar{padding-bottom:76px}
   #app{position:static;inset:auto;padding-top:37px;min-height:100vh;height:auto}
-  #main{grid-template-columns:1fr;height:auto}
+  #main{grid-template-columns:1fr;height:auto;gap:14px}
+
+  /* Read first, act second: the day feed comes above the calendar on a phone. */
+  #stage{order:1;height:64vh;height:64dvh;min-height:420px}
+  #rail-l{order:2}
+  #rail-r{order:3}
+
   #rail-l,#rail-r{overflow:visible;max-height:none}
   #calendar{max-height:none;overflow:visible}
-  #stage{height:70vh;min-height:460px}
-  #signals,#inflight{max-height:none;overflow:visible}
-  .bar-right{width:100%;order:5}
+  #signals,#inflight{max-height:none;overflow:visible;flex:0 0 auto}
   .weekstrip{display:flex}
+
+  /* The bar carries the clock and the tabs, so it has to stay put. It pins
+     under the Slop-Bucket strip and the tabs become one scrollable row rather
+     than three wrapped lines. */
+  #bar{position:sticky;top:37px;z-index:60;padding:6px 10px;gap:8px}
+  .bar-right{
+    width:100%;order:5;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    padding-bottom:2px;margin-bottom:-2px;
+  }
+  .bar-right::-webkit-scrollbar{display:none}
+  .bar-right{
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent);
+  }
+  .tb{flex:0 0 auto}
+  .crest{width:32px;height:32px;border-radius:9px;font-size:10px}
+  .whoami b{font-size:13px}
+
+  /* touch targets */
+  .tb{padding:8px 12px;font-size:12.5px}
+  .tb.ghost{padding:8px 14px}
+  .x{width:38px;height:38px;font-size:22px}
+  .slot{min-height:52px;padding:8px 10px 8px 42px}
+  .slot.mtg{padding-left:46px}
+  .quickbtn{padding:10px 12px}
+  .opt{padding:12px 14px}
+  .ac{padding:11px 13px}
+  .chipf{padding:7px 13px}
+  .polfilter input{padding:10px 12px}
+  .mail{padding:12px 14px}
+
+  /* sheets and modals use the whole screen, minus a thumb's worth */
+  .sheet-in{width:100vw;max-height:90vh;max-height:90dvh;border-radius:18px 18px 0 0}
+  .sheet-head{padding:12px 14px 10px}
+  .sheet-body{padding:12px 14px 26px}
+  .modal{padding:8px;align-items:flex-end}
+  .modal-in{width:100%;max-width:none;max-height:92vh;max-height:92dvh;padding:18px 16px 20px;border-radius:18px 18px 8px 8px}
+  .cards{grid-template-columns:1fr}
+  .cards.dense{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .ac.big2{grid-column:span 1}
+  #toast{bottom:88px}
+
+  .pgrid,.tgrid,.dgrid{grid-template-columns:1fr}
+  .stickies{grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:9px}
+  .pol .rows{grid-template-columns:1fr;gap:1px 0}
+  .pol .rows dt{margin-top:5px}
+  .epi h2{font-size:24px}
+  /* the inline explainer beside a group heading needs its own line */
+  .grp>h4{flex-wrap:wrap}
+  .grp>h4 span{flex:1 0 100%;margin-top:2px;line-height:1.4}
+  .grp>h4::after{display:none}
+  .sheet-head b{font-size:17px}
+  .view{padding:14px 13px 26px}
+  h2.vh{font-size:20px}
+}
+
+/* phone held sideways: the stage must not be taller than the screen */
+@media (max-width:900px) and (max-height:540px){
+  #stage{min-height:240px;height:72vh;height:72dvh}
+  #nowbar{padding:8px 12px calc(8px + env(safe-area-inset-bottom))}
+  body.hasbar{padding-bottom:62px}
+  #toast{bottom:70px}
+}
+
+@media (max-width:560px){
+  .whoami span{display:none}
+  .weekstrip{display:none}
+  .bar-mid{flex:1 1 auto}
+  #boot h1{text-shadow:2px 2px 0 rgba(255,201,60,.75)}
+  .boot-in{text-align:left}
+  .boot-cards{justify-content:flex-start}
+  .boot-row{justify-content:stretch;flex-direction:column}
+  .big{width:100%}
+}
+
+/* ============================================================ TOUCH
+   Hover transforms latch on a touch screen and leave cards stuck in a lifted
+   state until you tap somewhere else. Neutralise them and give press feedback
+   instead. */
+@media (hover:none){
+  .tb:hover,.slot.now:hover,.pc:hover,.mail:hover,
+  .ac:hover:not(:disabled),.opt:hover:not(:disabled){transform:none;box-shadow:0 2px 0 rgba(43,35,32,.07)}
+  .ac:hover:not(:disabled),.opt:hover:not(:disabled){border-color:var(--rule)}
+  .sticky:hover{transform:rotate(var(--r,0deg));box-shadow:2px 3px 0 rgba(43,35,32,.10),0 10px 20px -12px rgba(43,35,32,.4)}
+  .big:hover{transform:none;box-shadow:0 4px 0 var(--ink)}
+  .ac:active:not(:disabled),.opt:active:not(:disabled),.pc:active,.mail:active{
+    transform:scale(.985);border-color:var(--ink3)}
+  .slot.now:active{transform:scale(.99)}
+  .big:active{transform:translateY(2px);box-shadow:0 2px 0 var(--ink)}
 }

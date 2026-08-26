@@ -29,6 +29,8 @@ function boot(){
   $$('.tb[data-view]').forEach(b=> b.onclick = ()=> setView(b.dataset.view));
   $('#sheetX').onclick = closeSheet;
   $('#sheet').onclick = e => { if(e.target.id==='sheet') closeSheet(); };
+  $('#modal').onclick = e => { if(e.target.id==='modal') closeModal(); };
+  $('#nowbar').onclick = openSheet;
   $('#btnQuick').onclick = quickWord;
   document.addEventListener('keydown', e=>{
     if(e.key==='Escape'){ closeSheet(); closeModal(); }
@@ -52,6 +54,7 @@ function start(){
   UI = api;
   $('#boot').classList.add('off');
   $('#app').classList.add('on');
+  document.body.classList.add('hasbar');
   setTimeout(()=>{ $('#boot').style.display='none'; }, 520);
   render();
   renderFeedAll();
@@ -65,10 +68,11 @@ function render(){
   $('#barDate').textContent = d.dow+' '+d.date;
   $('#barClock').textContent = SLOTS[Math.min(7,S.slot)];
   $('#railDate').textContent = d.dow;
-  renderWeek(); renderCalendar(); renderSignals(); renderInflight(); renderAttention();
+  renderWeek(); renderCalendar(); renderSignals(); renderInflight(); renderAttention(); renderNowbar();
   $('#btnQuick').disabled = (S.quickUsed===S.day) || S.ended;
   $('#dotInbox').classList.toggle('on', S.inbox.some(m=>m.unread));
   if(view!=='feed') renderView(view);
+  afterAct();
 }
 
 function renderWeek(){
@@ -158,6 +162,33 @@ function renderInflight(){
       '<div class="ws">'+esc(def.states[w.state]||'')+'</div>';
     box.appendChild(c);
   });
+}
+
+/* On a phone the calendar sits below the day feed, so acting must not require
+   hunting for it. A fixed bar at the foot of the screen always shows the hour
+   you are standing in and opens the same chooser. */
+function renderNowbar(){
+  const bar = $('#nowbar');
+  if(S.ended){ bar.classList.remove('on'); return; }
+  const mid = fixedAt(S.day,S.slot);
+  const m = mid ? MEETINGS[mid] : null;
+  bar.style.setProperty('--c','var('+(m?m.c:'--sun')+')');
+  bar.innerHTML = '<span class="nt">'+SLOTS[Math.min(7,S.slot)]+'</span>'+
+    '<span class="nl">'+esc(m ? m.title : 'nothing booked — your hour')+'</span>'+
+    '<span class="ng">CHOOSE</span>';
+  bar.classList.add('on');
+}
+
+/* When an hour has been spent, bring the day feed back into view. On a phone
+   the result of what you just did is otherwise off the bottom of the screen. */
+let lastMark = '';
+function afterAct(){
+  const mark = S.day+':'+S.slot;
+  if(mark === lastMark) return;
+  lastMark = mark;
+  if(window.innerWidth > 900) return;
+  const st = $('#stage');
+  if(st) setTimeout(()=>{ try{ st.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){ st.scrollIntoView(); } }, 60);
 }
 
 /* ============================================================ VIEWS */
@@ -353,12 +384,12 @@ function renderReg(box){
   if(S.flags.complaints_handled) rows.push(['DPS-12','Complaint triage classifier','Data','assess','Registered. Impact assessment commenced. Routes complaints including misconduct allegations.']);
   box.innerHTML = '<h2 class="vh">AI use case register</h2>'+
     '<p class="vsub">The department&rsquo;s memory of its own AI use, and the first thing an auditor asks for. A trial is a use case; &ldquo;it&rsquo;s only a pilot&rdquo; is not a category the Archives Act recognises.</p>'+
-    '<table class="regtable"><thead><tr><th>ID</th><th>Use case</th><th>Area</th><th>Status</th><th>Notes</th></tr></thead><tbody>'+
+    '<div class="tblwrap"><table class="regtable"><thead><tr><th>ID</th><th>Use case</th><th>Area</th><th>Status</th><th>Notes</th></tr></thead><tbody>'+
     rows.map(r=>'<tr><td style="font-family:var(--mono);font-size:11px">'+r[0]+'</td>'+
       '<td><div class="nm">'+esc(r[1])+'</div></td><td style="font-size:11px">'+esc(r[2])+'</td>'+
       '<td><span class="st '+(r[3]==='live'?'live':r[3]==='pilot'?'pilot':'assess')+'">'+(r[3]==='assess'?'under assessment':r[3])+'</span></td>'+
       '<td><div class="de">'+esc(r[4])+'</div></td></tr>').join('')+
-    '</tbody></table>'+
+    '</tbody></table></div>'+
     (!S.flags.reg_entry && S.facts.f_pitch ? '<div class="warnbox">The Lumenscribe trial is not in here. If it starts before it is registered, the department has a live AI use case it cannot show anybody.</div>':'')+
     (S.facts.f_complaints && !S.flags.complaints_handled ? '<div class="warnbox">The Data branch&rsquo;s complaint triage classifier is not in here either, and it is arguably higher impact than the one everybody is looking at.</div>':'')+
     (S.facts.f_prior ? '<div class="infobox">DPS-06 is the same product. It is being cited as a precedent. It summarised internal policy documents for staff who could check the source in ten seconds &mdash; not applications from members of the public feeding a decision about their money. Whether that is a material change is a judgement, and the register does not make judgements.</div>':'');
@@ -424,6 +455,7 @@ function openSheet(){
   sheetConvene(b);
   sheetDelegate(b);
   sheetGroup(b,'build','Build something that outlives this','Expensive now. Cheaper forever. Two hours each.');
+  b.scrollTop = 0;
   $('#sheet').classList.add('on');
 }
 function closeSheet(){ $('#sheet').classList.remove('on'); }
@@ -581,7 +613,9 @@ function convo(actorId, quick){
       '<div class="opts">'+ rem.map((t,i)=>'<button class="opt" data-i="'+av.indexOf(t)+'" style="--c:var('+DOMAIN_C[a.domain]+')">'+
         '<b>'+esc(t.q)+'</b>'+(t.pol?'<span class="tagline">touches '+esc(POLICY_BY_ID[t.pol].title)+'</span>':'')+'</button>').join('')+
       '</div>'+
-      (chosen.length? '<div style="margin-top:12px"><button class="big" id="goTalk">Have the conversation</button></div>':'')+
+      '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
+        (chosen.length? '<button class="big" id="goTalk">Have the conversation</button>':'')+
+        '<button class="big ghost" id="noTalk">Leave it for now</button></div>'+
       (lockedCount(actorId)? '<p class="tiny" style="margin-top:12px">'+lockedCount(actorId)+' other thing'+(lockedCount(actorId)===1?'':'s')+
         ' you could ask '+a.name.split(' ')[0]+' — but not yet. Either you do not know enough to know the question, or they do not know you well enough to answer it.</p>':'');
     openModal(html);
@@ -591,6 +625,7 @@ function convo(actorId, quick){
       if(chosen.length>=max) go(); else paint();
     });
     const gt = $('#goTalk'); if(gt) gt.onclick = go;
+    const nt = $('#noTalk'); if(nt) nt.onclick = closeModal;
   }
   function go(){
     closeModal(); closeSheet();
@@ -609,8 +644,20 @@ function quickWord(){
 }
 
 /* ============================================================ MODALS */
-function openModal(html){ $('#modalIn').innerHTML = html; $('#modal').classList.add('on'); }
-function closeModal(){ $('#modal').classList.remove('on'); }
+/* Modals are dismissible unless the flow genuinely cannot be abandoned
+   half-way (an interruption, the close-out chain). Phones have no Escape key,
+   so every dismissible modal gets a real close control and a backdrop tap. */
+let modalLocked = false;
+function openModal(html, opt){
+  const lock = opt && opt.lock;
+  modalLocked = !!lock;
+  $('#modalIn').innerHTML = (lock ? '' : '<button class="mx" id="modalX" aria-label="close">&times;</button>') + html;
+  $('#modal').classList.toggle('locked', !!lock);
+  $('#modal').classList.add('on');
+  const x = $('#modalX'); if(x) x.onclick = closeModal;
+}
+function closeModal(){ if(modalLocked) return; modalLocked=false; $('#modal').classList.remove('on'); }
+function forceCloseModal(){ modalLocked=false; $('#modal').classList.remove('on'); }
 function openOpts(title, sub, opts){
   openModal('<h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p><div class="opts" id="oo"></div>');
   const box = $('#oo');
@@ -623,8 +670,8 @@ function openOpts(title, sub, opts){
 function interrupt(it){
   const opts = it.opts.filter(o=>!o.need||o.need(S)).map(o=>({
     label:o.label, sub:o.sub, c:o.c,
-    run:()=>{ closeModal(); o.run(S,G); render(); save(); } }));
-  openModal('<div class="mk">'+SLOTS[S.slot]+' &middot; interruption</div><h3>'+esc(it.title)+'</h3><p>'+esc(it.text)+'</p><div class="opts" id="oo"></div>');
+    run:()=>{ forceCloseModal(); o.run(S,G); render(); save(); } }));
+  openModal('<div class="mk">'+SLOTS[S.slot]+' &middot; interruption</div><h3>'+esc(it.title)+'</h3><p>'+esc(it.text)+'</p><div class="opts" id="oo"></div>', {lock:true});
   const box=$('#oo');
   opts.forEach(o=>{ const b=el('button','opt'); b.style.setProperty('--c','var('+(o.c||'--rule')+')');
     b.innerHTML='<b>'+esc(o.label)+'</b><small>'+esc(o.sub||'')+'</small>'; b.onclick=o.run; box.appendChild(b); });
@@ -635,7 +682,7 @@ function endgame(){
   const paths = PATHWAYS.filter(p=>!p.need||p.need(S));
   openModal('<div class="mk">Friday 13 March · 15:00 · close-out</div><h3>What do you recommend?</h3>'+
     '<p>There is no correct answer here, and several of these are defensible on what you know. What you have found out, who has agreed to what, and what is written down will decide how this reads in six months — not the option itself.</p>'+
-    '<div class="opts" id="oo"></div>');
+    '<div class="opts" id="oo"></div>', {lock:true});
   const box = $('#oo');
   paths.forEach(p=>{
     const b = el('button','opt'); b.style.setProperty('--c','var('+p.c+')');
@@ -651,7 +698,7 @@ function pickControls(){
     openModal('<div class="mk">close-out · controls</div><h3>What attaches to it?</h3>'+
       '<p>Only the controls you actually found the need for are on this list. You cannot attach a control against a problem nobody told you about.</p>'+
       '<div class="opts" id="oo"></div>'+
-      '<div style="margin-top:12px"><button class="big" id="goC">'+(chosen.length?'Attach these '+chosen.length:'Attach nothing')+'</button></div>');
+      '<div style="margin-top:12px"><button class="big" id="goC">'+(chosen.length?'Attach these '+chosen.length:'Attach nothing')+'</button></div>', {lock:true});
     const box=$('#oo');
     avail.forEach(c=>{
       const on = chosen.indexOf(c.id)>=0;
@@ -672,7 +719,7 @@ function pickSigners(){
     openModal('<div class="mk">close-out · who decides</div><h3>Who actually signs this?</h3>'+
       '<p>A committee endorsement is not a risk acceptance. An assurance function does not approve anything. If nobody on this list has agreed to carry a piece of it, the decision has no owner &mdash; and in six months, that is the finding.</p>'+
       '<div class="opts" id="oo"></div>'+
-      '<div style="margin-top:12px"><button class="big" id="goS">'+(chosen.length?'That is the decision':'Nobody signs it')+'</button></div>');
+      '<div style="margin-top:12px"><button class="big" id="goS">'+(chosen.length?'That is the decision':'Nobody signs it')+'</button></div>', {lock:true});
     const box=$('#oo');
     avail.forEach(s=>{
       const on = chosen.indexOf(s.id)>=0;
@@ -681,7 +728,7 @@ function pickSigners(){
       b.onclick = ()=>{ const i=chosen.indexOf(s.id); if(i>=0)chosen.splice(i,1); else chosen.push(s.id); paint(); };
       box.appendChild(b);
     });
-    $('#goS').onclick = ()=>{ S.endSigners = chosen.slice(); closeModal(); finaliseGame(); };
+    $('#goS').onclick = ()=>{ S.endSigners = chosen.slice(); forceCloseModal(); finaliseGame(); };
   }
   paint();
 }
@@ -693,6 +740,8 @@ function finish(){
   const a = $('#again'); if(a) a.onclick = ()=>{ clearSave(); location.reload(); };
   scrollFeed();
   $('#calendar').innerHTML = '<div class="emptyb">The fortnight is over.</div>';
+  $('#nowbar').classList.remove('on');
+  document.body.classList.remove('hasbar');
 }
 
 /* ============================================================ CHROME */
