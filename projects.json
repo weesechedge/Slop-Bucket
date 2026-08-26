@@ -1,10 +1,46 @@
 {
   "projects": [
     {
+      "slug": "adopt-this",
+      "title": "Adopt This!",
+      "description": "Ten working days inside the Department of Public Systems, an invented Australian Government department, where you are the Director of AI Adoption & Enablement and a branch wants to start an AI trial on grant assessments next Monday. A Deputy Secretary has already seen the demo. Nobody has told you anything untrue, and nobody has told you everything. You cannot approve it, authorise it, fund it, procure it or stop it — six other people hold those eleven powers between them — so the game is coordination: find out what is actually true, carry facts between functions that have never been in a room together, and get it in front of whoever can decide it defensibly. Eight hours a day, resolved one hour at a time, with four staff, a committee that reschedules without moving the paper deadline, and thirty-nine real Commonwealth instruments underneath the fiction — the Policy for the responsible use of AI in government, the Privacy Act and the APPs, the Archives Act, the PSPF, the ISM, the CPRs, the PGPA Act, the CGRGs, administrative law — each carrying its source, status, applicability, expected evidence and, crucially, the question it does not answer. Twenty-eight named officers, fifty-two facts held by whoever happens to know them, sticky notes that show a privacy position and a records position as the same arrangement described from two chairs, and no compliance score anywhere: the right-hand rail carries what the organisation is actually saying. It ends with a six-months-on account read back from what you found, wrote down and left undone — including everything that was true the whole fortnight that you never found out.",
+      "tags": [
+        "game",
+        "simulation",
+        "public-sector",
+        "aps",
+        "ai-policy",
+        "governance",
+        "australian-government",
+        "institutional",
+        "strategy",
+        "narrative",
+        "policy",
+        "interactive",
+        "browser"
+      ],
+      "date": "2026-08-26",
+      "path": "projects/adopt-this/",
+      "pages": []
+    },
+    {
       "slug": "the-long-service",
       "title": "The Long Service",
-      "description": "Slow television with a public sector job inside it. You are the conductor of the Nordkapp\u2013Lindesnes through service \u2014 day three of four, Trondheim to Lindesnes, 938 km, thirteen hours and six minutes at one second per second \u2014 and the whole screen is a cutaway of the moving train you are walking up and down, drawn live and scored live: rail joints, wind, door chimes, a PA that speaks aloud in the browser's own voice. You are also an EL1. The working day (09:00 to 17:06, the APS standard day) happens on a laptop that is a real object on a tray table at seat 12A. Sit at the table and it fills the screen, runs at full speed, and you cannot go anywhere. Pick it up and it becomes a panel at the side: you keep walking, working the doors and answering the PA with it open, and everything on it takes about two thirds longer. That is the whole trade. Meanwhile the conductor's round keeps arriving: doors at every station, the announcement five minutes out, tickets to check, litter to bin, the heating in car B, lost property to log in the guard's van, reservation cards, and passengers who put a hand up at the far end. Leave any of it and something mildly annoying happens \u2014 a second cup appears, Revenue Protection emails you a spreadsheet, the brief goes up late \u2014 and nothing at all ends the run. The inbox only goes up, the assurance template comes back at a higher version number, and seven per cent of the line is tunnel, which takes the Teams call and whatever you were part-way through with it. Paste in your own real assurance questions and they become the template. It all keeps running with the tab shut, and you are allowed to put every bit of it down and watch out of the window instead.",
-      "tags": ["game", "real-time", "slow-tv", "simulation", "aps", "public-sector", "satire", "train", "assurance", "canvas", "side-scroller", "interactive"],
+      "description": "Slow television with a public sector job inside it. You are the conductor of the Nordkapp–Lindesnes through service — day three of four, Trondheim to Lindesnes, 938 km, thirteen hours and six minutes at one second per second — and the whole screen is a cutaway of the moving train you are walking up and down, drawn live and scored live: rail joints, wind, door chimes, a PA that speaks aloud in the browser's own voice. You are also an EL1. The working day (09:00 to 17:06, the APS standard day) happens on a laptop that is a real object on a tray table at seat 12A. Sit at the table and it fills the screen, runs at full speed, and you cannot go anywhere. Pick it up and it becomes a panel at the side: you keep walking, working the doors and answering the PA with it open, and everything on it takes about two thirds longer. That is the whole trade. Meanwhile the conductor's round keeps arriving: doors at every station, the announcement five minutes out, tickets to check, litter to bin, the heating in car B, lost property to log in the guard's van, reservation cards, and passengers who put a hand up at the far end. Leave any of it and something mildly annoying happens — a second cup appears, Revenue Protection emails you a spreadsheet, the brief goes up late — and nothing at all ends the run. The inbox only goes up, the assurance template comes back at a higher version number, and seven per cent of the line is tunnel, which takes the Teams call and whatever you were part-way through with it. Paste in your own real assurance questions and they become the template. It all keeps running with the tab shut, and you are allowed to put every bit of it down and watch out of the window instead.",
+      "tags": [
+        "game",
+        "real-time",
+        "slow-tv",
+        "simulation",
+        "aps",
+        "public-sector",
+        "satire",
+        "train",
+        "assurance",
+        "canvas",
+        "side-scroller",
+        "interactive"
+      ],
       "date": "2026-08-11",
       "path": "projects/the-long-service/",
       "pages": []
@@ -12,8 +48,20 @@
     {
       "slug": "potato-farmer",
       "title": "Potato Farmer",
-      "description": "A potato farming simulator played in real time \u2014 which begins at the agricultural revolution, in 10,000 BC. The aim is to be a potato farmer farming potatoes; the condition is that you must first get through the intervening 12,026 years at one second per second. A live Neolithic clock, a progress bar that needs a 1,000,000\u00d7 microscope to appear to move, ticking countdowns to the invention of pottery and the arrival of the potato in Europe, a lineage of foragers who each die after fifteen years, a day/night hillside lit by your actual local time, and a fully implemented potato field that unlocks in the year 14,052. The clock runs whether the tab is open or not, and progress travels between devices by way of a self-validating key that encodes the save itself \u2014 no server, no account, and invented keys are refused. Nobody has won.",
-      "tags": ["game", "idle", "real-time", "simulation", "potato", "neolithic", "deep-time", "satire", "canvas", "interactive", "browser"],
+      "description": "A potato farming simulator played in real time — which begins at the agricultural revolution, in 10,000 BC. The aim is to be a potato farmer farming potatoes; the condition is that you must first get through the intervening 12,026 years at one second per second. A live Neolithic clock, a progress bar that needs a 1,000,000× microscope to appear to move, ticking countdowns to the invention of pottery and the arrival of the potato in Europe, a lineage of foragers who each die after fifteen years, a day/night hillside lit by your actual local time, and a fully implemented potato field that unlocks in the year 14,052. The clock runs whether the tab is open or not, and progress travels between devices by way of a self-validating key that encodes the save itself — no server, no account, and invented keys are refused. Nobody has won.",
+      "tags": [
+        "game",
+        "idle",
+        "real-time",
+        "simulation",
+        "potato",
+        "neolithic",
+        "deep-time",
+        "satire",
+        "canvas",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-08-10",
       "path": "projects/potato-farmer/",
       "pages": []
@@ -22,7 +70,17 @@
       "slug": "quotle",
       "title": "Quotle",
       "description": "A Wordle for famous quotes — over 1000 of them, in a separate database. The whole quote sits on one line of letter boxes; each guess is graded and stacks below the last, so you read down the columns to see what you've nailed. Colours work per word — a yellow only tells you a letter is in that word, never across the whole quote — and each wrong guess unlocks another clue. A universal Quote of the Day, then unlock a random one. Five tries, then copy an emoji scorecard (one square per letter) to share.",
-      "tags": ["game", "wordle", "word-game", "quotes", "puzzle", "trivia", "shareable", "interactive", "browser"],
+      "tags": [
+        "game",
+        "wordle",
+        "word-game",
+        "quotes",
+        "puzzle",
+        "trivia",
+        "shareable",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-06-25",
       "path": "projects/quotle/",
       "pages": []
@@ -31,7 +89,18 @@
       "slug": "how-to-protect-profits",
       "title": "How to Protect Profits",
       "description": "A playable tribute to Dr Paul Hubbard — economist, conductor, and the APS's first Assistant Secretary for AI Delivery & Enablement. Take the baton as the Masked Economist: catch the sector profits and public value, dodge the hype and red tape, and conduct your way across five stages drawn from his thesis, his livestream, and the APS AI Plan 2025.",
-      "tags": ["game", "arcade", "canvas", "economics", "ai-policy", "aps", "paul-hubbard", "tribute", "interactive", "browser"],
+      "tags": [
+        "game",
+        "arcade",
+        "canvas",
+        "economics",
+        "ai-policy",
+        "aps",
+        "paul-hubbard",
+        "tribute",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-06-16",
       "path": "projects/how-to-protect-profits/",
       "pages": []
@@ -40,7 +109,17 @@
       "slug": "grand-theft-tokens-vi-vibe-city",
       "title": "Grand Theft Tokens VI - Vibe City",
       "description": "A loving, entirely-original parody of a certain open-world crime game — built from boxes, math and AI jokes and rendered live with WebGL. Drive around neon-soaked Vibe City, commit version-control crimes, dodge a five-star wanted system, and hunt 25 hidden golden Attention Orbs. Runs entirely in your browser, nothing uploaded.",
-      "tags": ["webgl", "three-js", "game", "open-world", "driving", "parody", "3d", "interactive", "browser"],
+      "tags": [
+        "webgl",
+        "three-js",
+        "game",
+        "open-world",
+        "driving",
+        "parody",
+        "3d",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-06-11",
       "path": "projects/grand-theft-tokens-vi-vibe-city/",
       "pages": []
@@ -49,7 +128,17 @@
       "slug": "fable5-max-impression-v1-grand-theft-tokens-vi-vibe-city",
       "title": "Fable 5 Max Impression - V1 Grand Theft Tokens VI - Vibe City",
       "description": "A loving, entirely-original parody of a certain open-world crime game — built from boxes, math and AI jokes and rendered live with WebGL. Drive around neon-soaked Vibe City, commit version-control crimes, dodge a five-star wanted system, and hunt 25 hidden golden Attention Orbs. Runs entirely in your browser, nothing uploaded.",
-      "tags": ["webgl", "three-js", "game", "open-world", "driving", "parody", "3d", "interactive", "browser"],
+      "tags": [
+        "webgl",
+        "three-js",
+        "game",
+        "open-world",
+        "driving",
+        "parody",
+        "3d",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-06-10",
       "path": "projects/fable5-max-impression-v1-grand-theft-tokens-vi-vibe-city/",
       "pages": []
@@ -58,20 +147,51 @@
       "slug": "fable5-max-impression-sorting-transformer",
       "title": "Fable 5 Max Impression - Sorting Transformer",
       "description": "A 107,840-parameter decoder-only transformer written from scratch in pure NumPy — hand-derived gradients, gradient-checked, and trained to sort lists of opaque tokens with no built-in notion of order. Its weights are embedded in the page and the forward pass runs live in your browser; watch the attention head light up the argsort circuit it discovered.",
-      "tags": ["transformer", "attention", "numpy", "from-scratch", "backpropagation", "sorting", "mechanistic-interpretability", "machine-learning", "interactive", "browser"],
+      "tags": [
+        "transformer",
+        "attention",
+        "numpy",
+        "from-scratch",
+        "backpropagation",
+        "sorting",
+        "mechanistic-interpretability",
+        "machine-learning",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-06-10",
       "path": "projects/fable5-max-impression-sorting-transformer/",
       "pages": [
-        { "title": "Source — sortformer.py", "file": "sortformer.py", "description": "The full pure-NumPy implementation: hand-derived forward/backward passes, gradient check against finite differences, Adam, training loop, and the analysis that exports the figures and embedded weights." },
-        { "title": "Training curves", "file": "training_curves.png", "description": "Live training run: log-scale loss and held-out exact-match accuracy climbing to ~100% as the model learns to sort." },
-        { "title": "Attention map", "file": "attention_argsort.png", "description": "Layer 1 head 1 — the argsort circuit the model discovered: heat shows where it attends while emitting each sorted token, circles mark the ground-truth argsort." }
+        {
+          "title": "Source — sortformer.py",
+          "file": "sortformer.py",
+          "description": "The full pure-NumPy implementation: hand-derived forward/backward passes, gradient check against finite differences, Adam, training loop, and the analysis that exports the figures and embedded weights."
+        },
+        {
+          "title": "Training curves",
+          "file": "training_curves.png",
+          "description": "Live training run: log-scale loss and held-out exact-match accuracy climbing to ~100% as the model learns to sort."
+        },
+        {
+          "title": "Attention map",
+          "file": "attention_argsort.png",
+          "description": "Layer 1 head 1 — the argsort circuit the model discovered: heat shows where it attends while emitting each sorted token, circles mark the ground-truth argsort."
+        }
       ]
     },
     {
       "slug": "speed-reader",
       "title": "Speed Reader",
       "description": "A speed-reading tool that uses the RSVP method to flash text one word at a time at a fixed focal point, highlighting each word's optimal recognition point; adjustable WPM, chunk size, sentence-boundary pauses, and keyboard controls.",
-      "tags": ["rsvp", "speed-reading", "reading", "typography", "interactive", "browser", "productivity"],
+      "tags": [
+        "rsvp",
+        "speed-reading",
+        "reading",
+        "typography",
+        "interactive",
+        "browser",
+        "productivity"
+      ],
       "date": "2026-06-08",
       "path": "projects/speed-reader/",
       "pages": []
@@ -80,7 +200,17 @@
       "slug": "cube-maker",
       "title": "Cube Maker",
       "description": "Drop in an image, wrap it onto a spinning 3D cube, pick a spin style and loop length, then export an animated GIF — all rendered with WebGL in the browser, nothing uploaded.",
-      "tags": ["webgl", "three-js", "gif", "animation", "3d", "cube", "image", "interactive", "browser"],
+      "tags": [
+        "webgl",
+        "three-js",
+        "gif",
+        "animation",
+        "3d",
+        "cube",
+        "image",
+        "interactive",
+        "browser"
+      ],
       "date": "2026-06-08",
       "path": "projects/cube-maker/",
       "pages": []
@@ -89,7 +219,15 @@
       "slug": "opus-4-8-impression-neural-playground",
       "title": "Opus 4.8 Impression - Neural Playground",
       "description": "A small multilayer perceptron trained live in the browser by hand-written backpropagation — watch tangled classes get pulled apart in the network's learned 2-D representation until a single line separates them.",
-      "tags": ["neural-network", "backpropagation", "machine-learning", "representation-learning", "interactive", "visualization", "from-scratch"],
+      "tags": [
+        "neural-network",
+        "backpropagation",
+        "machine-learning",
+        "representation-learning",
+        "interactive",
+        "visualization",
+        "from-scratch"
+      ],
       "date": "2026-06-08",
       "path": "projects/opus-4-8-impression-neural-playground/",
       "pages": []
@@ -98,21 +236,48 @@
       "slug": "gerrymandering-dynamics",
       "title": "Gerrymandering Dynamics",
       "description": "Four interactive explainers on how district lines and electoral systems turn votes into seats — and why disproportionality is not the same as an unfair (asymmetric) map.",
-      "tags": ["gerrymandering", "districting", "seats-votes", "symmetry", "elections", "interactive", "politics"],
+      "tags": [
+        "gerrymandering",
+        "districting",
+        "seats-votes",
+        "symmetry",
+        "elections",
+        "interactive",
+        "politics"
+      ],
       "date": "2026-06-08",
       "path": "projects/gerrymandering-dynamics/",
       "pages": [
-        { "title": "The Symmetry Test", "file": "gerrymander-symmetry.html", "description": "Fixed 60/40 electorate, only the lines move; cracking and packing vs the symmetry mirror, efficiency gap, partisan bias." },
-        { "title": "Districting Lab", "file": "districting-lab.html", "description": "100 voters, five parties, 10 seats; pick a map and move the electorate to watch Gallagher disproportionality and symmetry." },
-        { "title": "The Seats–Votes Curve", "file": "seats-votes-curve.html", "description": "Two-party model: responsiveness (rho) and bias (beta) separate disproportionality from unfairness." },
-        { "title": "Seats–Votes Lab · N parties", "file": "seats-votes-lab.html", "description": "Multiparty seats–votes with shared responsiveness and per-party bias multipliers; structural fan vs gerrymander." }
+        {
+          "title": "The Symmetry Test",
+          "file": "gerrymander-symmetry.html",
+          "description": "Fixed 60/40 electorate, only the lines move; cracking and packing vs the symmetry mirror, efficiency gap, partisan bias."
+        },
+        {
+          "title": "Districting Lab",
+          "file": "districting-lab.html",
+          "description": "100 voters, five parties, 10 seats; pick a map and move the electorate to watch Gallagher disproportionality and symmetry."
+        },
+        {
+          "title": "The Seats–Votes Curve",
+          "file": "seats-votes-curve.html",
+          "description": "Two-party model: responsiveness (rho) and bias (beta) separate disproportionality from unfairness."
+        },
+        {
+          "title": "Seats–Votes Lab · N parties",
+          "file": "seats-votes-lab.html",
+          "description": "Multiparty seats–votes with shared responsiveness and per-party bias multipliers; structural fan vs gerrymander."
+        }
       ]
     },
     {
       "slug": "welcome",
       "title": "Welcome to the Slop-Bucket",
       "description": "The first thing published here — proves the publishing pipeline works end to end.",
-      "tags": ["meta", "welcome"],
+      "tags": [
+        "meta",
+        "welcome"
+      ],
       "date": "2026-06-08",
       "path": "projects/welcome/",
       "pages": []

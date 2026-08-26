@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Adopt This! — ten days inside the Department of Public Systems</title>
+<meta name="description" content="A simulation of getting an AI pilot through an Australian Government department: distributed authority, incomplete knowledge, real policy, and eight hours a day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:9px 18px;background:#15171c;border-bottom:1px solid #2c313c;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px"><a href="../../" style="color:#9aa0ab;text-decoration:none">Slop-Bucket</a><span style="color:#3a4150">/</span><span style="color:#e0903f;font-weight:600">Adopt This!</span></nav>
+
+<div id="app">
+
+  <!-- ======================= TOP BAR ======================= -->
+  <header id="bar">
+    <div class="bar-left">
+      <div class="crest" aria-hidden="true"><span>DPS</span></div>
+      <div class="whoami">
+        <b id="barDept">Department of Public Systems</b>
+        <span id="barRole">Director, AI Adoption &amp; Enablement &middot; BureauBot24601</span>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <div class="daychip"><em id="barDay">Day 1</em><span id="barDate">Monday 2 March</span></div>
+      <div class="clockchip" id="barClock">09:00</div>
+      <div class="weekstrip" id="weekStrip"></div>
+    </div>
+    <div class="bar-right">
+      <button class="tb" data-view="feed"   title="The day so far">Day</button>
+      <button class="tb" data-view="inbox"  title="Inbox and chat">Inbox<i class="dot" id="dotInbox"></i></button>
+      <button class="tb" data-view="know"   title="What we know">Board<i class="dot" id="dotKnow"></i></button>
+      <button class="tb" data-view="people" title="Who is who">People</button>
+      <button class="tb" data-view="policy" title="Policy library">Policy</button>
+      <button class="tb" data-view="reg"    title="AI use case register">Register</button>
+      <button class="tb" data-view="docs"   title="Documents and artefacts">Docs</button>
+      <button class="tb" data-view="team"   title="Your team">Team</button>
+      <button class="tb ghost" id="btnMenu" title="Save, restart, about">&#9776;</button>
+    </div>
+  </header>
+
+  <!-- ======================= MAIN ======================= -->
+  <main id="main">
+
+    <!-- LEFT: today's calendar -->
+    <aside id="rail-l">
+      <h3 class="railh">Today <span id="railDate"></span></h3>
+      <div id="calendar"></div>
+      <div class="railfoot">
+        <div class="attn"><span>Attention left today</span><div id="attnPips"></div></div>
+        <button id="btnQuick" class="quickbtn">Drop by someone&rsquo;s desk<em>free &middot; once a day</em></button>
+      </div>
+    </aside>
+
+    <!-- CENTRE: the stage -->
+    <section id="stage">
+      <div id="view-feed" class="view"></div>
+      <div id="view-inbox" class="view"></div>
+      <div id="view-know" class="view"></div>
+      <div id="view-people" class="view"></div>
+      <div id="view-policy" class="view"></div>
+      <div id="view-reg" class="view"></div>
+      <div id="view-docs" class="view"></div>
+      <div id="view-team" class="view"></div>
+    </section>
+
+    <!-- RIGHT: signals + in flight -->
+    <aside id="rail-r">
+      <h3 class="railh">What the organisation is saying</h3>
+      <div id="signals"></div>
+      <h3 class="railh">In flight</h3>
+      <div id="inflight"></div>
+    </aside>
+  </main>
+
+  <!-- action chooser sheet -->
+  <div id="sheet" class="sheet"><div class="sheet-in"><div class="sheet-head"><b id="sheetTitle"></b><span id="sheetSub"></span><button class="x" id="sheetX">&times;</button></div><div class="sheet-body" id="sheetBody"></div></div></div>
+
+  <!-- generic modal -->
+  <div id="modal" class="modal"><div class="modal-in" id="modalIn"></div></div>
+
+  <!-- toast -->
+  <div id="toast"></div>
+</div>
+
+<!-- ======================= TITLE CARD ======================= -->
+<div id="boot">
+  <div class="boot-in">
+    <div class="boot-cards" aria-hidden="true">
+      <i style="--c:#FFC93C;--r:-8deg"></i><i style="--c:#22B8A6;--r:5deg"></i><i style="--c:#FF6B58;--r:-3deg"></i>
+      <i style="--c:#9B7BD6;--r:9deg"></i><i style="--c:#4FA9F5;--r:-6deg"></i>
+    </div>
+    <div class="kick">A SIMULATION OF INSTITUTIONAL COORDINATION &middot; TEN WORKING DAYS</div>
+    <h1>Adopt&nbsp;This!</h1>
+    <p class="sub">You are the Director of AI Adoption &amp; Enablement at the <b>Department of Public Systems</b>.
+      A branch wants to start an AI trial on grant assessments <b>next Monday</b>. A Deputy Secretary has already
+      seen the demo and liked it. Nobody has told you anything that is untrue, and nobody has told you everything.</p>
+    <p class="sub2">You cannot approve it. You cannot stop it. You have four staff, eight hours a day,
+      a committee that meets on Thursday, and the whole of the Commonwealth&rsquo;s policy apparatus sitting
+      quietly underneath the problem. Your job is not to solve it. Your job is to make it possible for
+      somebody to decide it, defensibly, and to still be able to explain that decision in six months.</p>
+    <div class="boot-row">
+      <button id="btnNew" class="big">Start Monday</button>
+      <button id="btnCont" class="big alt" hidden>Continue &mdash; <em id="contWhen"></em></button>
+      <button id="btnAbout" class="big ghost">What is this?</button>
+    </div>
+    <p class="fine">Real Australian Government policy sits under this game &mdash; the <i>Policy for the responsible use of AI in
+      government</i>, the Privacy Act, the Archives Act, the PSPF, the CPRs, the PGPA Act and the rest &mdash;
+      thirty-nine instruments in all, each with its status, its source, the evidence it expects and the question it does not answer. The department is invented. The policy is not.
+      It is still a game: check the primary source before you rely on anything here.</p>
+  </div>
+</div>
+
+<script src="policy.js"></script>
+<script src="people.js"></script>
+<script src="facts.js"></script>
+<script src="talk.js"></script>
+<script src="actions.js"></script>
+<script src="story.js"></script>
+<script src="engine.js"></script>
+<script src="epilogue.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
